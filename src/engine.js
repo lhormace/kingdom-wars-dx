@@ -1,3 +1,17 @@
+import {
+  TILE,
+  GRID_W,
+  GRID_H,
+  TILE_FLOOR,
+  TILE_WALL,
+  TILE_CASTLE,
+  TILE_FOREST,
+  TILE_WATER,
+  TILE_BRIDGE,
+  TILE_MOUNTAIN,
+  buildStage,
+} from "./stage.js";
+
 const TILE = 24;
 const GRID_W = 32;
 const GRID_H = 24;
