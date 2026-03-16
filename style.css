@@ -1,0 +1,89 @@
+:root {
+  --bg: #111;
+  --panel: #1a1a1a;
+  --line: #333;
+  --text: #eee;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: monospace;
+}
+
+.app {
+  width: min(1280px, 100%);
+  margin: 0 auto;
+  padding: 16px;
+}
+
+.hud {
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+  padding: 12px;
+  background: #141414;
+  border: 2px solid var(--line);
+  border-radius: 12px;
+  margin-bottom: 16px;
+}
+
+.main {
+  display: grid;
+  grid-template-columns: 1fr 320px;
+  gap: 16px;
+}
+
+.game-panel,
+.side-panel {
+  background: var(--panel);
+  border: 2px solid var(--line);
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.game-panel {
+  padding: 12px;
+}
+
+.side-panel {
+  padding: 16px;
+}
+
+canvas {
+  display: block;
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  background: #000;
+  image-rendering: pixelated;
+}
+
+.buttons {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+button {
+  padding: 8px 12px;
+  background: #333;
+  color: #eee;
+  border: 1px solid #555;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.message {
+  min-height: 120px;
+  white-space: pre-line;
+  line-height: 1.5;
+}
+
+@media (max-width: 980px) {
+  .main {
+    grid-template-columns: 1fr;
+  }
+}

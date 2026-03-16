@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Kingdom Wars DX</title>
+  <link rel="stylesheet" href="./style.css" />
+</head>
+<body>
+  <div class="app">
+    <header class="hud">
+      <div>状態: <span id="status">初期化中</span></div>
+      <div>STAGE: <span id="stage">1</span></div>
+      <div>SCORE: <span id="score">0</span></div>
+      <div>HP: <span id="hp">8/8</span></div>
+      <div>兵: <span id="soldier">0</span></div>
+      <div>騎士: <span id="knight">0</span></div>
+    </header>
+
+    <main class="main">
+      <section class="game-panel">
+        <canvas id="game" width="768" height="576"></canvas>
+      </section>
+
+      <aside class="side-panel">
+        <h1>Kingdom Wars DX</h1>
+        <p>GitHub CLI 本格版プロジェクト</p>
+
+        <div class="buttons">
+          <button id="startBtn">ゲーム開始</button>
+          <button id="restartBtn">リスタート</button>
+        </div>
+
+        <h2>操作</h2>
+        <ul>
+          <li>移動: 矢印キー / WASD</li>
+          <li>魔法: F</li>
+          <li>結界: B</li>
+          <li>必殺: U</li>
+          <li>再開: R</li>
+        </ul>
+
+        <h2>メッセージ</h2>
+        <div id="message" class="message">準備中...</div>
+      </aside>
+    </main>
+  </div>
+
+  <script type="module" src="./src/main.js"></script>
+</body>
+</html>
