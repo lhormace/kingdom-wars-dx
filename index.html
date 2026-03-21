@@ -4,24 +4,61 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Kingdom Wars DX</title>
-  <style>
-    body {
-      margin: 0;
-      background: #111;
-      color: #eee;
-      font-family: monospace;
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      min-height: 100vh;
-    }
-    #game-container {
-      border: 2px solid #333;
-    }
-  </style>
+  <link rel="stylesheet" href="./style.css" />
 </head>
 <body>
-  <div id="game-container"></div>
+  <main class="app">
+    <section class="hero-panel">
+      <div>
+        <p class="eyebrow">Fantasy Tactical Action</p>
+        <h1>Kingdom Wars DX</h1>
+        <p class="lead">王国軍を率いて敵城へ進軍する、レトロ風ライン戦術アクションです。王・兵士・騎士・魔法使い・僧侶の隊列を守りながら、捕虜救出と聖剣回収を経てラスボスを倒してください。</p>
+      </div>
+      <div class="hero-actions">
+        <button id="start-button" type="button">ゲーム開始</button>
+        <button id="restart-button" type="button">ステージやり直し</button>
+      </div>
+    </section>
+
+    <section class="content-grid">
+      <section class="game-panel">
+        <div id="game-container" aria-label="Kingdom Wars DX game screen"></div>
+      </section>
+
+      <aside class="side-panel">
+        <section class="panel-block">
+          <h2>ゲームの目的</h2>
+          <ul>
+            <li>敵を倒して敵城へ進み、ラスボス撃破後に城へ入るとステージクリア。</li>
+            <li>捕虜を助けると味方が増え、3人ごとに騎士へ昇格します。</li>
+            <li>聖剣エクスカリバーを拾うと強敵に大ダメージを与えられます。</li>
+          </ul>
+        </section>
+
+        <section class="panel-block">
+          <h2>操作方法</h2>
+          <dl class="controls-list">
+            <div><dt>移動</dt><dd>矢印キー / WASD</dd></div>
+            <div><dt>魔法</dt><dd>F キー</dd></div>
+            <div><dt>再開始</dt><dd>R キー または右上ボタン</dd></div>
+            <div><dt>開始</dt><dd>Enter / Space / 開始ボタン</dd></div>
+          </dl>
+        </section>
+
+        <section class="panel-block legend-block">
+          <h2>登場キャラクター</h2>
+          <ul class="legend-list">
+            <li><span class="legend-swatch hero"></span>王：前線で戦う主人公</li>
+            <li><span class="legend-swatch soldier"></span>兵士：数で支える基本戦力</li>
+            <li><span class="legend-swatch knight"></span>騎士：高火力の精鋭</li>
+            <li><span class="legend-swatch mage"></span>大魔法使い：遠距離支援</li>
+            <li><span class="legend-swatch priest"></span>僧侶：隊列を支える護衛役</li>
+          </ul>
+        </section>
+      </aside>
+    </section>
+  </main>
+
   <script src="https://cdn.jsdelivr.net/npm/phaser@3/dist/phaser.js"></script>
   <script type="module" src="./game.js"></script>
 </body>
