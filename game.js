@@ -1,3 +1,7 @@
+function rand(min, max) {
+  return Math.floor(Math.random() * (max - min + 1)) + min;
+}
+
 class MainScene extends Phaser.Scene {
   constructor() {
     super("main");
@@ -9,6 +13,8 @@ class MainScene extends Phaser.Scene {
   create() {
     this.stage = 1;
     this.score = 0;
+    this.kills = 0;
+    this.lastMagicTime = 0;
 
     this.colors = {
       floor: 0x222222,
@@ -75,6 +81,7 @@ class MainScene extends Phaser.Scene {
     this.prisoners = [];
     this.excalibur = null;
     this.lastMoveTime = 0;
+    this.lastMagicTime = 0;
     this.message = `STAGE ${this.stage} 開始`;
 
     this.generateMap();
