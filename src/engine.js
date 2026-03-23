@@ -479,8 +479,13 @@ function castMagic(state, auto = false) {
   const targets = [];
   for (let i = 0; i < state.enemies.length; i++) {
     const e = state.enemies[i];
-    if (e.y === state.hero.y && e.x > state.hero.x && e.x <= state.hero.x + 6) {
-      targets.push({ index: i, dist: e.x - state.hero.x });
+    const isForwardLaneTarget = e.y === state.hero.y && e.x > state.hero.x && e.x <= state.hero.x + 6;
+    const isAdjacentVerticalTarget = e.x === state.hero.x && Math.abs(e.y - state.hero.y) === 1;
+    if (isForwardLaneTarget || isAdjacentVerticalTarget) {
+      targets.push({
+        index: i,
+        dist: Math.max(0, e.x - state.hero.x) + Math.abs(e.y - state.hero.y) * 0.35,
+      });
     }
   }
   targets.sort((a, b) => a.dist - b.dist);
