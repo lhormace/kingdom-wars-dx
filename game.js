@@ -912,8 +912,13 @@ class MainScene extends Phaser.Scene {
     const targets = [];
     for (let i = 0; i < this.enemies.length; i++) {
       const e = this.enemies[i];
-      if (e.x > this.hero.x && e.x <= this.hero.x + 8 && Math.abs(e.y - this.hero.y) <= 2) {
-        targets.push({ index: i, dist: (e.x - this.hero.x) + Math.abs(e.y - this.hero.y) * 0.35 });
+      const isForwardLaneTarget = e.x > this.hero.x && e.x <= this.hero.x + 8 && Math.abs(e.y - this.hero.y) <= 2;
+      const isAdjacentVerticalTarget = e.x === this.hero.x && Math.abs(e.y - this.hero.y) === 1;
+      if (isForwardLaneTarget || isAdjacentVerticalTarget) {
+        targets.push({
+          index: i,
+          dist: Math.max(0, e.x - this.hero.x) + Math.abs(e.y - this.hero.y) * 0.35,
+        });
       }
     }
 
