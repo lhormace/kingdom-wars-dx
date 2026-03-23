@@ -18,6 +18,8 @@ class MainScene extends Phaser.Scene {
     this.lastMoveTime = 0;
     this.phase = "title";
     this.message = "Enter または開始ボタンで出撃します。";
+    this.magicEffects = [];
+    this.isPaused = false;
 
     this.colors = {
       floor: 0x222222,
@@ -64,6 +66,7 @@ class MainScene extends Phaser.Scene {
     this.setupOverlayText();
     this.bindDomButtons();
     this.showTitleOverlay();
+    this.syncDomButtons();
     this.updateHud();
   }
 
@@ -99,18 +102,38 @@ class MainScene extends Phaser.Scene {
   }
 
   bindDomButtons() {
-    const startButton = document.getElementById("start-button");
-    const restartButton = document.getElementById("restart-button");
+    this.startButton = document.getElementById("start-button");
+    this.restartButton = document.getElementById("restart-button");
 
-    startButton?.addEventListener("click", () => {
+    this.startButton?.addEventListener("click", () => {
       if (this.phase === "title") this.startNewRun();
+      else if (this.phase === "playing") this.togglePause();
+      else if (this.phase === "paused") this.togglePause();
       else if (this.phase === "clear") this.beginNextStage();
+      else if (this.phase === "gameover") this.restartCurrentStage();
     });
 
-    restartButton?.addEventListener("click", () => {
+    this.restartButton?.addEventListener("click", () => {
       if (this.phase === "title") this.startNewRun();
       else this.restartCurrentStage();
     });
+  }
+
+  syncDomButtons() {
+    if (this.startButton) {
+      const labels = {
+        title: "ゲーム開始",
+        playing: this.isPaused ? "再開" : "一時停止",
+        paused: "再開",
+        clear: "次のステージ",
+        gameover: "再挑戦",
+      };
+      this.startButton.textContent = labels[this.phase] ?? "ゲーム開始";
+    }
+
+    if (this.restartButton) {
+      this.restartButton.textContent = this.phase === "title" ? "ステージやり直し" : "ステージ再挑戦";
+    }
   }
 
   startNewRun() {
@@ -131,6 +154,7 @@ class MainScene extends Phaser.Scene {
 
   startStage() {
     this.phase = "playing";
+    this.isPaused = false;
     this.hero = {
       x: 2,
       y: 12,
@@ -150,12 +174,14 @@ class MainScene extends Phaser.Scene {
     this.excalibur = null;
     this.lastMoveTime = 0;
     this.lastMagicTime = 0;
+    this.magicEffects = [];
     this.message = `STAGE ${this.stage} 開始。敵城へ進軍してください。`;
 
     this.generateMap();
     this.spawnEntities();
     this.renderAll();
     this.hideOverlay();
+    this.syncDomButtons();
     this.updateHud();
   }
 
@@ -188,6 +214,7 @@ class MainScene extends Phaser.Scene {
       "・聖剣を拾うと強敵とラスボスに有利になります",
     ]).setVisible(true);
     this.overlayHint.setText("Enter / Space / 開始ボタンで出撃").setVisible(true);
+    this.syncDomButtons();
   }
 
   showStageClearOverlay() {
@@ -200,6 +227,7 @@ class MainScene extends Phaser.Scene {
     this.overlaySubtitle.setText(`ステージ ${this.stage - 1} を突破しました`).setVisible(true);
     this.overlayBody.setText("開始ボタンで次ステージへ、やり直しボタンで同じステージを再挑戦できます。\n敵の配置は毎回変化します。").setVisible(true);
     this.overlayHint.setText("Enter / 開始ボタンで次のステージへ").setVisible(true);
+    this.syncDomButtons();
   }
 
   showGameOverOverlay() {
@@ -212,6 +240,7 @@ class MainScene extends Phaser.Scene {
     this.overlaySubtitle.setText("王国軍が壊滅しました").setVisible(true);
     this.overlayBody.setText("やり直しボタンまたは R キーでステージを再挑戦できます。\n味方を救いながら隊列を維持して進軍しましょう。").setVisible(true);
     this.overlayHint.setText("R / やり直しボタンで再挑戦").setVisible(true);
+    this.syncDomButtons();
   }
 
   hideOverlay() {
@@ -220,6 +249,40 @@ class MainScene extends Phaser.Scene {
     this.overlaySubtitle.setVisible(false);
     this.overlayBody.setVisible(false);
     this.overlayHint.setVisible(false);
+  }
+
+  togglePause() {
+    if (this.phase === "playing") {
+      this.phase = "paused";
+      this.isPaused = true;
+      this.message = "進軍を一時停止しています。";
+      this.showPauseOverlay();
+      this.renderAll();
+      this.updateHud();
+      return;
+    }
+
+    if (this.phase === "paused") {
+      this.phase = "playing";
+      this.isPaused = false;
+      this.message = "進軍を再開しました。";
+      this.hideOverlay();
+      this.renderAll();
+      this.updateHud();
+    }
+  }
+
+  showPauseOverlay() {
+    this.overlayGraphics.clear();
+    this.overlayGraphics.fillStyle(0x041019, 0.76);
+    this.overlayGraphics.fillRoundedRect(150, 170, 468, 204, 22);
+    this.overlayGraphics.lineStyle(2, 0x8cc8ff, 0.35);
+    this.overlayGraphics.strokeRoundedRect(150, 170, 468, 204, 22);
+    this.overlayTitle.setText("PAUSE").setVisible(true);
+    this.overlaySubtitle.setText("進軍を中断中").setVisible(true);
+    this.overlayBody.setText("開始ボタンまたは Enter / Space で戦線へ復帰します。\nやり直しボタンならこのステージを最初から再挑戦できます。").setVisible(true);
+    this.overlayHint.setText("開始ボタンで再開 / R で再挑戦").setVisible(true);
+    this.syncDomButtons();
   }
 
   generateMap() {
@@ -370,8 +433,16 @@ class MainScene extends Phaser.Scene {
         this.startNewRun();
         return;
       }
+      if (this.phase === "playing" || this.phase === "paused") {
+        this.togglePause();
+        return;
+      }
       if (this.phase === "clear") {
         this.beginNextStage();
+        return;
+      }
+      if (this.phase === "gameover") {
+        this.restartCurrentStage();
         return;
       }
     }
@@ -381,6 +452,8 @@ class MainScene extends Phaser.Scene {
       else this.restartCurrentStage();
       return;
     }
+
+    this.updateMagicEffects();
 
     if (this.phase !== "playing") return;
 
@@ -541,10 +614,38 @@ class MainScene extends Phaser.Scene {
       return;
     }
 
+    const mageX = Math.max(1, this.hero.x - this.formation.length - 1);
+    const mageY = this.hero.y;
     const target = this.enemies[targets[0].index];
+
+    this.spawnMagicEffect(mageX, mageY, target.x, target.y, target.type === "finalBoss" ? 0xfff59d : 0x90caf9);
+
     target.hp -= 2;
     if (target.hp <= 0) this.removeEnemy(targets[0].index);
     this.message = "大魔法使いが魔法を放ちました。";
+  }
+
+  spawnMagicEffect(fromX, fromY, toX, toY, color) {
+    this.magicEffects.push({
+      fromX,
+      fromY,
+      toX,
+      toY,
+      color,
+      expiresAt: this.time.now + 220,
+    });
+  }
+
+  updateMagicEffects() {
+    if (!this.magicEffects.length) return;
+
+    const before = this.magicEffects.length;
+    this.magicEffects = this.magicEffects.filter(effect => effect.expiresAt > this.time.now);
+
+    if (this.magicEffects.length !== before) {
+      this.renderAll();
+      this.updateHud();
+    }
   }
 
   moveEnemies() {
@@ -830,6 +931,26 @@ class MainScene extends Phaser.Scene {
     this.drawCharacter(priestX, this.hero.y, "priest");
     this.drawCharacter(mageX, this.hero.y, "mage");
 
+    for (const effect of this.magicEffects) {
+      const age = Phaser.Math.Clamp((effect.expiresAt - this.time.now) / 220, 0, 1);
+      const sx = effect.fromX * this.tileSize + this.tileSize * 0.75;
+      const sy = effect.fromY * this.tileSize + this.tileSize * 0.38;
+      const tx = effect.toX * this.tileSize + this.tileSize * 0.5;
+      const ty = effect.toY * this.tileSize + this.tileSize * 0.5;
+      const width = 2 + age * 4;
+
+      this.unitGraphics.lineStyle(width, effect.color, 0.45 + age * 0.45);
+      this.unitGraphics.beginPath();
+      this.unitGraphics.moveTo(sx, sy);
+      this.unitGraphics.lineTo(tx, ty);
+      this.unitGraphics.strokePath();
+
+      this.unitGraphics.fillStyle(effect.color, 0.25 + age * 0.5);
+      this.unitGraphics.fillCircle(tx, ty, 5 + age * 6);
+      this.unitGraphics.fillStyle(0xffffff, 0.35 + age * 0.45);
+      this.unitGraphics.fillCircle((sx + tx) / 2, (sy + ty) / 2, 2 + age * 2);
+    }
+
     let fx = this.hero.x;
     for (let i = 0; i < this.formation.length; i++) {
       fx--;
@@ -844,8 +965,17 @@ class MainScene extends Phaser.Scene {
   updateHud() {
     const soldiers = this.formation?.filter(u => u.type === "soldier").length ?? 0;
     const knights = this.formation?.filter(u => u.type === "knight").length ?? 0;
-    const phaseLabel = this.phase === "title" ? "出撃前" : this.phase === "clear" ? "ステージクリア" : this.phase === "gameover" ? "敗北" : "進軍中";
+    const phaseLabel = this.phase === "title"
+      ? "出撃前"
+      : this.phase === "clear"
+        ? "ステージクリア"
+        : this.phase === "gameover"
+          ? "敗北"
+          : this.phase === "paused"
+            ? "一時停止"
+            : "進軍中";
 
+    this.syncDomButtons();
     this.infoText.setText(`状態 ${phaseLabel}  STAGE ${this.stage}  SCORE ${this.score}  HP ${this.hero?.hp ?? 8}/${this.hero?.maxHp ?? 8}  兵 ${soldiers}  騎士 ${knights}  聖剣 ${this.hero?.hasExcalibur ? "有" : "無"}`);
     this.messageText.setText(this.message);
   }
