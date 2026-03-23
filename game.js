@@ -2,6 +2,137 @@ function rand(min, max) {
   return Math.floor(Math.random() * (max - min + 1)) + min;
 }
 
+class RetroAudio {
+  constructor() {
+    this.ctx = null;
+    this.master = null;
+    this.musicGain = null;
+    this.sfxGain = null;
+    this.unlocked = false;
+    this.musicEnabled = false;
+    this.nextMusicTime = 0;
+    this.musicStep = 0;
+    this.theme = [
+      { freq: 220.0, beats: 1.5, type: "triangle", gain: 0.045 },
+      { freq: 261.63, beats: 0.5, type: "triangle", gain: 0.038 },
+      { freq: 329.63, beats: 1.0, type: "triangle", gain: 0.05 },
+      { freq: 392.0, beats: 1.0, type: "triangle", gain: 0.05 },
+      { freq: 329.63, beats: 1.0, type: "triangle", gain: 0.045 },
+      { freq: 293.66, beats: 1.0, type: "triangle", gain: 0.04 },
+      { freq: 261.63, beats: 1.0, type: "triangle", gain: 0.04 },
+      { freq: 196.0, beats: 1.0, type: "triangle", gain: 0.038 },
+      { freq: 220.0, beats: 1.0, type: "square", gain: 0.032 },
+      { freq: 293.66, beats: 1.0, type: "triangle", gain: 0.045 },
+      { freq: 349.23, beats: 1.0, type: "triangle", gain: 0.048 },
+      { freq: 440.0, beats: 2.0, type: "triangle", gain: 0.055 },
+      { freq: 392.0, beats: 1.0, type: "triangle", gain: 0.042 },
+      { freq: 329.63, beats: 1.0, type: "triangle", gain: 0.04 },
+      { freq: 293.66, beats: 1.0, type: "triangle", gain: 0.04 },
+      { freq: 261.63, beats: 2.0, type: "triangle", gain: 0.04 },
+    ];
+    this.bass = [110, 146.83, 164.81, 174.61, 130.81, 146.83, 110, 98.0];
+  }
+
+  unlock() {
+    if (!this.ctx) {
+      const AudioCtx = window.AudioContext || window.webkitAudioContext;
+      if (!AudioCtx) return;
+      this.ctx = new AudioCtx();
+      this.master = this.ctx.createGain();
+      this.master.gain.value = 0.8;
+      this.musicGain = this.ctx.createGain();
+      this.musicGain.gain.value = 0.18;
+      this.sfxGain = this.ctx.createGain();
+      this.sfxGain.gain.value = 0.4;
+      this.musicGain.connect(this.master);
+      this.sfxGain.connect(this.master);
+      this.master.connect(this.ctx.destination);
+    }
+
+    if (this.ctx.state === "suspended") this.ctx.resume();
+    this.unlocked = true;
+  }
+
+  setMusicEnabled(enabled) {
+    if (!this.unlocked || !this.ctx) return;
+    this.musicEnabled = enabled;
+    if (enabled) {
+      this.nextMusicTime = Math.max(this.ctx.currentTime + 0.04, this.nextMusicTime || 0);
+    }
+  }
+
+  update() {
+    if (!this.musicEnabled || !this.unlocked || !this.ctx) return;
+    while (this.nextMusicTime < this.ctx.currentTime + 0.35) {
+      const step = this.theme[this.musicStep % this.theme.length];
+      const bassFreq = this.bass[this.musicStep % this.bass.length];
+      const duration = 0.22 * step.beats;
+      this.scheduleTone(this.nextMusicTime, duration, step.freq, step.type, step.gain, this.musicGain);
+      this.scheduleTone(this.nextMusicTime, duration * 0.95, bassFreq, "sine", 0.028, this.musicGain);
+      this.nextMusicTime += duration;
+      this.musicStep += 1;
+    }
+  }
+
+  playSfx(kind) {
+    if (!this.unlocked || !this.ctx) return;
+    const now = this.ctx.currentTime;
+    const map = {
+      attack: [
+        { freq: 180, dur: 0.05, type: "square", gain: 0.08 },
+        { freq: 120, dur: 0.08, type: "triangle", gain: 0.06, delay: 0.03 },
+      ],
+      hit: [
+        { freq: 240, dur: 0.06, type: "square", gain: 0.08 },
+        { freq: 180, dur: 0.08, type: "square", gain: 0.06, delay: 0.04 },
+      ],
+      damage: [
+        { freq: 140, dur: 0.07, type: "sawtooth", gain: 0.085 },
+        { freq: 90, dur: 0.12, type: "triangle", gain: 0.07, delay: 0.02 },
+      ],
+      magic: [
+        { freq: 440, dur: 0.08, type: "triangle", gain: 0.08 },
+        { freq: 660, dur: 0.12, type: "sine", gain: 0.06, delay: 0.05 },
+      ],
+      heal: [
+        { freq: 392, dur: 0.07, type: "sine", gain: 0.07 },
+        { freq: 523.25, dur: 0.14, type: "triangle", gain: 0.06, delay: 0.05 },
+      ],
+      pickup: [
+        { freq: 523.25, dur: 0.08, type: "triangle", gain: 0.07 },
+        { freq: 659.25, dur: 0.08, type: "triangle", gain: 0.07, delay: 0.07 },
+        { freq: 783.99, dur: 0.16, type: "sine", gain: 0.06, delay: 0.14 },
+      ],
+      clear: [
+        { freq: 392, dur: 0.08, type: "triangle", gain: 0.07 },
+        { freq: 523.25, dur: 0.1, type: "triangle", gain: 0.07, delay: 0.08 },
+        { freq: 659.25, dur: 0.14, type: "triangle", gain: 0.07, delay: 0.18 },
+      ],
+      boss: [
+        { freq: 110, dur: 0.14, type: "sawtooth", gain: 0.09 },
+        { freq: 146.83, dur: 0.18, type: "triangle", gain: 0.06, delay: 0.08 },
+      ],
+    };
+    for (const note of map[kind] || []) {
+      this.scheduleTone(now + (note.delay || 0), note.dur, note.freq, note.type, note.gain, this.sfxGain);
+    }
+  }
+
+  scheduleTone(start, duration, frequency, type, gainAmount, output) {
+    const osc = this.ctx.createOscillator();
+    const gain = this.ctx.createGain();
+    osc.type = type;
+    osc.frequency.setValueAtTime(frequency, start);
+    gain.gain.setValueAtTime(0.0001, start);
+    gain.gain.exponentialRampToValueAtTime(gainAmount, start + 0.02);
+    gain.gain.exponentialRampToValueAtTime(0.0001, start + duration);
+    osc.connect(gain);
+    gain.connect(output);
+    osc.start(start);
+    osc.stop(start + duration + 0.05);
+  }
+}
+
 class MainScene extends Phaser.Scene {
   constructor() {
     super("main");
@@ -21,6 +152,10 @@ class MainScene extends Phaser.Scene {
     this.magicEffects = [];
     this.worldEffects = [];
     this.isPaused = false;
+    this.audio = new RetroAudio();
+    this.damageRegenDelay = 0;
+    this.passiveHealTick = 0;
+    this.companionTexts = [];
     this.setupCompanions();
     this.resetWorldState();
 
@@ -66,6 +201,13 @@ class MainScene extends Phaser.Scene {
       wordWrap: { width: 760 },
     }).setDepth(1000).setScrollFactor(0);
 
+    this.mageMpText = this.add.text(0, 0, "", {
+      fontSize: "12px",
+      color: "#eaf4ff",
+      backgroundColor: "rgba(8, 12, 18, 0.8)",
+      padding: { x: 4, y: 2 },
+    }).setDepth(1001);
+
     this.setupOverlayText();
     this.bindDomButtons();
     this.showTitleOverlay();
@@ -109,6 +251,7 @@ class MainScene extends Phaser.Scene {
     this.restartButton = document.getElementById("restart-button");
 
     this.startButton?.addEventListener("click", () => {
+      this.audio.unlock();
       if (this.phase === "title") this.startNewRun();
       else if (this.phase === "playing") this.togglePause();
       else if (this.phase === "paused") this.togglePause();
@@ -117,6 +260,7 @@ class MainScene extends Phaser.Scene {
     });
 
     this.restartButton?.addEventListener("click", () => {
+      this.audio.unlock();
       if (this.phase === "title") this.startNewRun();
       else this.restartCurrentStage();
     });
@@ -167,11 +311,13 @@ class MainScene extends Phaser.Scene {
       maxHp: 8,
       hasExcalibur: false,
     };
+    this.damageRegenDelay = 0;
+    this.passiveHealTick = 0;
 
     this.formation = [
       { type: "soldier" },
       { type: "soldier" },
-      { type: "soldier" },
+      { type: "knight" },
     ];
 
     this.enemies = [];
@@ -180,18 +326,21 @@ class MainScene extends Phaser.Scene {
     this.lastMoveTime = 0;
     this.lastMagicTime = 0;
     this.magicEffects = [];
-    this.message = `STAGE ${this.stage} 開始。敵城へ進軍してください。`;
+    this.message = `STAGE ${this.stage} 開始。王・騎士・大魔法使い・僧侶の隊列で進軍してください。`;
 
     this.generateMap();
     this.spawnEntities();
     this.renderAll();
     this.hideOverlay();
     this.syncDomButtons();
+    this.audio.unlock();
+    this.audio.setMusicEnabled(true);
     this.updateHud();
   }
 
   showTitleOverlay() {
     this.phase = "title";
+    this.audio?.setMusicEnabled(false);
     this.generateMap();
     this.hero = { x: 4, y: this.roadY, hp: 8, maxHp: 8, hasExcalibur: false };
     this.formation = [{ type: "soldier" }, { type: "knight" }];
@@ -215,8 +364,9 @@ class MainScene extends Phaser.Scene {
     this.overlayBody.setText([
       "・矢印キー / WASD で前進・後退・上下移動",
       "・F で前方の敵へ魔法攻撃",
-      "・捕虜を助けると味方が増え、3人ごとに騎士へ昇格",
-      "・聖剣を拾うと強敵とラスボスに有利になります",
+      "・王の後方には騎士・大魔法使い・僧侶が最初から同行します",
+      "・時間経過で王のHPが少しずつ自動回復します",
+      "・聖剣を拾うと強敵と4x4 の龍ラスボスに有利になります",
     ]).setVisible(true);
     this.overlayHint.setText("Enter / Space / 開始ボタンで出撃").setVisible(true);
     this.syncDomButtons();
@@ -228,6 +378,8 @@ class MainScene extends Phaser.Scene {
     this.overlayGraphics.fillRoundedRect(120, 160, 528, 220, 22);
     this.overlayGraphics.lineStyle(2, 0x72ffae, 0.35);
     this.overlayGraphics.strokeRoundedRect(120, 160, 528, 220, 22);
+    this.audio?.setMusicEnabled(false);
+    this.audio?.playSfx("clear");
     this.overlayTitle.setText("STAGE CLEAR").setVisible(true);
     this.overlaySubtitle.setText(`ステージ ${this.stage - 1} を突破しました`).setVisible(true);
     this.overlayBody.setText("開始ボタンで次ステージへ、やり直しボタンで同じステージを再挑戦できます。\n敵の配置は毎回変化します。").setVisible(true);
@@ -241,6 +393,8 @@ class MainScene extends Phaser.Scene {
     this.overlayGraphics.fillRoundedRect(120, 160, 528, 220, 22);
     this.overlayGraphics.lineStyle(2, 0xff7b7b, 0.35);
     this.overlayGraphics.strokeRoundedRect(120, 160, 528, 220, 22);
+    this.audio?.setMusicEnabled(false);
+    this.audio?.playSfx("damage");
     this.overlayTitle.setText("GAME OVER").setVisible(true);
     this.overlaySubtitle.setText("王国軍が壊滅しました").setVisible(true);
     this.overlayBody.setText("やり直しボタンまたは R キーでステージを再挑戦できます。\n味方を救いながら隊列を維持して進軍しましょう。").setVisible(true);
@@ -261,6 +415,7 @@ class MainScene extends Phaser.Scene {
       this.phase = "paused";
       this.isPaused = true;
       this.message = "進軍を一時停止しています。";
+      this.audio?.setMusicEnabled(false);
       this.showPauseOverlay();
       this.renderAll();
       this.updateHud();
@@ -272,6 +427,7 @@ class MainScene extends Phaser.Scene {
       this.isPaused = false;
       this.message = "進軍を再開しました。";
       this.hideOverlay();
+      this.audio?.setMusicEnabled(true);
       this.renderAll();
       this.updateHud();
     }
@@ -428,21 +584,20 @@ class MainScene extends Phaser.Scene {
     const miniCount = 2 + Math.floor(this.stage / 2);
     for (let i = 0; i < miniCount; i++) {
       const p = this.findFreeTile(this.mapW - 14, this.mapW - 8, true);
-      if (p) this.enemies.push({ type: "miniboss", x: p.x, y: p.y, hp: 4 + stageBoost, maxHp: 4 + stageBoost, power: 7 + stageBoost, color: 0xab47bc });
+      if (p) this.enemies.push({ type: "miniboss", x: p.x, y: p.y, hp: 4 + stageBoost, maxHp: 4 + stageBoost, power: 7 + stageBoost, color: 0xab47bc, size: 2 });
     }
 
-    const bossPos = this.findFreeTile(this.mapW - 8, this.mapW - 5, true);
-    if (bossPos) {
-      this.enemies.push({
-        type: "finalBoss",
-        x: bossPos.x,
-        y: bossPos.y,
-        hp: 10 + stageBoost * 2,
-        maxHp: 10 + stageBoost * 2,
-        power: 10 + stageBoost,
-        color: 0xffd54f,
-      });
-    }
+    const bossPos = this.findFreeRect(this.mapW - 5, this.roadY - 2, 4, 4, true) || { x: this.mapW - 5, y: this.roadY - 2 };
+    this.enemies.push({
+      type: "finalBoss",
+      x: bossPos.x,
+      y: bossPos.y,
+      hp: 18 + stageBoost * 3,
+      maxHp: 18 + stageBoost * 3,
+      power: 11 + stageBoost,
+      color: 0xffd54f,
+      size: 4,
+    });
 
     for (let i = 0; i < 10 + Math.floor(this.stage / 2); i++) {
       const p = this.findFreeTile(5, this.mapW - 8);
@@ -455,6 +610,46 @@ class MainScene extends Phaser.Scene {
 
   inBounds(x, y) {
     return x >= 0 && x < this.mapW && y >= 0 && y < this.mapH;
+  }
+
+  getEnemySize(enemy) {
+    return enemy?.size ?? (enemy?.type === "finalBoss" ? 4 : enemy?.type === "miniboss" ? 2 : 1);
+  }
+
+  enemyOccupies(enemy, x, y) {
+    const size = this.getEnemySize(enemy);
+    return x >= enemy.x && x < enemy.x + size && y >= enemy.y && y < enemy.y + size;
+  }
+
+  findEnemyAt(x, y) {
+    return this.enemies.findIndex(enemy => this.enemyOccupies(enemy, x, y));
+  }
+
+  canPlaceRect(x, y, width, height, allowCastle = false, ignoreEnemy = null) {
+    for (let yy = y; yy < y + height; yy++) {
+      for (let xx = x; xx < x + width; xx++) {
+        if (!this.inBounds(xx, yy)) return false;
+        const tile = this.getTile(xx, yy);
+        const okTile = tile === this.TILES.FLOOR || tile === this.TILES.FOREST || tile === this.TILES.BRIDGE || (allowCastle && tile === this.TILES.CASTLE);
+        if (!okTile) return false;
+        if (this.hero.x === xx && this.hero.y === yy) return false;
+        if (this.prisoners.some(p => p.x === xx && p.y === yy)) return false;
+        if (this.excalibur && !this.excalibur.picked && this.excalibur.x === xx && this.excalibur.y === yy) return false;
+        if (this.enemies.some(enemy => enemy !== ignoreEnemy && this.enemyOccupies(enemy, xx, yy))) return false;
+      }
+    }
+    return true;
+  }
+
+  findFreeRect(xMin, yMin, width, height, allowCastle = false) {
+    const maxX = Math.min(this.mapW - width - 1, Math.max(xMin, this.mapW - width - 1));
+    const maxY = Math.min(this.mapH - height - 1, Math.max(yMin, this.mapH - height - 1));
+    for (let i = 0; i < 240; i++) {
+      const x = Phaser.Math.Between(xMin, maxX);
+      const y = Phaser.Math.Between(Math.max(1, yMin - 1), maxY);
+      if (this.canPlaceRect(x, y, width, height, allowCastle)) return { x, y };
+    }
+    return null;
   }
 
   getTile(x, y) {
@@ -471,28 +666,17 @@ class MainScene extends Phaser.Scene {
     for (let i = 0; i < 400; i++) {
       const x = Phaser.Math.Between(xMin, xMax);
       const y = Phaser.Math.Between(2, this.mapH - 3);
-      const tile = this.getTile(x, y);
-
-      const okTile =
-        tile === this.TILES.FLOOR ||
-        tile === this.TILES.FOREST ||
-        tile === this.TILES.BRIDGE ||
-        (allowCastle && tile === this.TILES.CASTLE);
-
-      if (!okTile) continue;
-      if (this.hero.x === x && this.hero.y === y) continue;
-      if (this.enemies.some(e => e.x === x && e.y === y)) continue;
-      if (this.prisoners.some(p => p.x === x && p.y === y)) continue;
-      if (this.excalibur && !this.excalibur.picked && this.excalibur.x === x && this.excalibur.y === y) continue;
-      return { x, y };
+      if (this.canPlaceRect(x, y, 1, 1, allowCastle)) return { x, y };
     }
     return null;
   }
 
   update(_time, delta) {
     const dt = Math.min(0.05, (delta || 0) / 1000);
+    this.audio.update();
 
     if (Phaser.Input.Keyboard.JustDown(this.keys.ENTER) || Phaser.Input.Keyboard.JustDown(this.keys.SPACE)) {
+      this.audio.unlock();
       if (this.phase === "title") {
         this.startNewRun();
         return;
@@ -512,6 +696,7 @@ class MainScene extends Phaser.Scene {
     }
 
     if (Phaser.Input.Keyboard.JustDown(this.keys.R)) {
+      this.audio.unlock();
       if (this.phase === "title") this.startNewRun();
       else this.restartCurrentStage();
       return;
@@ -567,9 +752,9 @@ class MainScene extends Phaser.Scene {
       return;
     }
 
-    const enemyIndex = this.enemies.findIndex(e => e.x === nx && e.y === ny);
+    const enemyIndex = this.findEnemyAt(nx, ny);
     if (enemyIndex >= 0) {
-      this.resolveBattle(enemyIndex);
+      this.resolveBattle(enemyIndex, nx, ny);
       return;
     }
 
@@ -594,49 +779,56 @@ class MainScene extends Phaser.Scene {
     this.message = "進軍中...";
   }
 
-  resolveBattle(enemyIndex) {
+  resolveBattle(enemyIndex, targetX = null, targetY = null) {
     const enemy = this.enemies[enemyIndex];
     if (!enemy) return;
 
     if (this.hero.hasExcalibur && ["miniboss", "finalBoss"].includes(enemy.type)) {
-      this.hero.x = enemy.x;
-      this.hero.y = enemy.y;
+      this.hero.x = targetX ?? enemy.x;
+      this.hero.y = targetY ?? enemy.y;
       this.removeEnemy(enemyIndex);
-      this.message = enemy.type === "finalBoss" ? "エクスカリバーでラスボス撃破。" : "エクスカリバーで強敵撃破。";
+      this.audio?.playSfx("boss");
+      this.message = enemy.type === "finalBoss" ? "エクスカリバーで龍ラスボスを撃破。" : "エクスカリバーで強敵撃破。";
       return;
     }
 
     const front = this.formation.length > 0 ? this.formation[0] : { type: "hero" };
     const player = (front.type === "knight" ? rand(3, 8) : front.type === "soldier" ? rand(1, 6) : rand(4, 9)) + 2;
     const foe = rand(1, 6) + enemy.power;
+    this.audio?.playSfx("attack");
 
     if (player >= foe) {
-      enemy.hp -= 1;
+      enemy.hp -= enemy.type === "finalBoss" ? 2 : 1;
+      this.audio?.playSfx(enemy.type === "finalBoss" ? "boss" : "hit");
       if (enemy.hp <= 0) {
-        this.hero.x = enemy.x;
-        this.hero.y = enemy.y;
+        this.hero.x = targetX ?? enemy.x;
+        this.hero.y = targetY ?? enemy.y;
         this.removeEnemy(enemyIndex);
-        this.message = `${enemy.type} を撃破しました。`;
+        this.message = enemy.type === "finalBoss" ? "龍ラスボスを撃破しました。" : `${enemy.type} を撃破しました。`;
       } else {
-        this.message = `${enemy.type} にダメージ。`;
+        this.message = enemy.type === "finalBoss" ? "龍ラスボスに傷を負わせました。" : `${enemy.type} にダメージ。`;
       }
       return;
     }
 
     if (this.formation.length > 0) {
       const lost = this.formation.shift();
+      this.audio?.playSfx("damage");
+      this.damageRegenDelay = 6;
       this.message = lost.type === "knight" ? "騎士が倒れました。" : "兵が倒れました。";
       return;
     }
 
     this.hero.hp -= enemy.type === "finalBoss" ? 2 : 1;
+    this.damageRegenDelay = 8;
+    this.audio?.playSfx("damage");
     if (this.hero.hp <= 0) {
       this.hero.hp = 0;
       this.message = "GAME OVER";
       this.phase = "gameover";
       this.showGameOverOverlay();
     } else {
-      this.message = "王が傷つきました。";
+      this.message = enemy.type === "finalBoss" ? "龍の一撃で王が傷つきました。" : "王が傷つきました。";
     }
   }
 
@@ -656,6 +848,7 @@ class MainScene extends Phaser.Scene {
       const nextCount = this.formation.length + 1;
       this.formation.push(nextCount % 3 === 0 ? { type: "knight" } : { type: "soldier" });
       this.score += 20;
+      this.audio?.playSfx("pickup");
       this.message = nextCount % 3 === 0 ? "捕虜を救出。騎士が加入。" : "捕虜を救出。兵が加入。";
     }
 
@@ -663,7 +856,9 @@ class MainScene extends Phaser.Scene {
       this.excalibur.picked = true;
       this.hero.hasExcalibur = true;
       this.score += 150;
-      this.message = "エクスカリバーを入手しました。";
+      this.audio?.playSfx("pickup");
+      this.worldEffects.push({ type: "excalibur", x: this.hero.x - 1, y: this.hero.y - 1, size: 3, expiresAt: this.time.now + 1400 });
+      this.message = "エクスカリバーを入手しました。聖剣がまばゆく輝いています。";
     }
   }
 
@@ -694,13 +889,15 @@ class MainScene extends Phaser.Scene {
     const mageX = Math.max(1, this.hero.x - this.formation.length - 1);
     const mageY = this.hero.y;
     const target = this.enemies[targets[0].index];
+    const targetPoint = { x: target.x + Math.floor(this.getEnemySize(target) / 2), y: target.y + Math.floor(this.getEnemySize(target) / 2) };
 
-    this.spawnMagicEffect(mageX, mageY, target.x, target.y, target.type === "finalBoss" ? 0xfff59d : 0x90caf9);
+    this.spawnMagicEffect(mageX, mageY, targetPoint.x, targetPoint.y, target.type === "finalBoss" ? 0xfff59d : 0x90caf9);
     this.mage.mana = Math.max(0, this.mage.mana - this.mage.beamCost);
     this.mage.cooldown = 0.9;
     this.mage.recoveryDelay = this.mage.beamRecoveryDelay;
 
-    target.hp -= 2;
+    target.hp -= target.type === "finalBoss" ? 3 : 2;
+    this.audio?.playSfx("magic");
     if (target.hp <= 0) this.removeEnemy(targets[0].index);
     this.message = "大魔法使いが光線を放ちました。";
   }
@@ -723,6 +920,7 @@ class MainScene extends Phaser.Scene {
     this.priest.cooldown = Math.max(0, this.priest.cooldown - dt);
     this.mage.recoveryDelay = Math.max(0, this.mage.recoveryDelay - dt);
     this.priest.recoveryDelay = Math.max(0, this.priest.recoveryDelay - dt);
+    this.damageRegenDelay = Math.max(0, this.damageRegenDelay - dt);
 
     if (this.phase !== "playing") return;
 
@@ -731,6 +929,19 @@ class MainScene extends Phaser.Scene {
     }
     if (this.priest.recoveryDelay <= 0) {
       this.priest.mana = Math.min(this.priest.maxMana, this.priest.mana + dt * this.priest.regen);
+    }
+
+    if (this.hero.hp < this.hero.maxHp && this.damageRegenDelay <= 0) {
+      this.passiveHealTick += dt;
+      if (this.passiveHealTick >= 4) {
+        this.hero.hp = Math.min(this.hero.maxHp, this.hero.hp + 1);
+        this.passiveHealTick = 0;
+        this.message = this.message === "進軍中..." ? "王のHPが時間経過で回復しました。" : this.message;
+        this.renderAll();
+        this.updateHud();
+      }
+    } else {
+      this.passiveHealTick = 0;
     }
   }
 
@@ -746,6 +957,7 @@ class MainScene extends Phaser.Scene {
     this.priest.recoveryDelay = this.priest.healRecoveryDelay;
     this.hero.hp = Math.min(this.hero.maxHp, this.hero.hp + this.priest.healAmount);
     this.spawnMagicEffect(priestX, this.hero.y, this.hero.x, this.hero.y, 0xfff59d);
+    this.audio?.playSfx("heal");
     this.message = "僧侶が自動回復の祈りを捧げました。";
     this.renderAll();
     this.updateHud();
@@ -814,7 +1026,7 @@ class MainScene extends Phaser.Scene {
           this.getTile(x, y) !== this.TILES.WATER &&
           !(this.hero.x === x && this.hero.y === y) &&
           !this.prisoners.some(p => p.x === x && p.y === y) &&
-          !this.enemies.some(e => e.x === x && e.y === y) &&
+          !this.enemies.some(e => this.enemyOccupies(e, x, y)) &&
           Math.random() < 0.2
         ) {
           const type = Math.random() < 0.5 ? "scout" : "soldier";
@@ -881,6 +1093,28 @@ class MainScene extends Phaser.Scene {
 
     for (let i = 0; i < this.enemies.length; i++) {
       const e = this.enemies[i];
+      const size = this.getEnemySize(e);
+
+      if (e.type === "finalBoss") {
+        const heroNearX = this.hero.x >= e.x - 1 && this.hero.x <= e.x + size;
+        const heroNearY = this.hero.y >= e.y - 1 && this.hero.y <= e.y + size;
+        if (heroNearX && heroNearY) {
+          this.hero.hp = Math.max(0, this.hero.hp - 2);
+          this.damageRegenDelay = 8;
+          this.audio?.playSfx("boss");
+          if (this.hero.hp <= 0) {
+            this.message = "龍ラスボスのブレスでGAME OVER";
+            this.phase = "gameover";
+            this.showGameOverOverlay();
+          } else {
+            this.message = "龍ラスボスのブレスを受けました。";
+          }
+        }
+        continue;
+      }
+
+      if (size > 1) continue;
+
       const dx = Math.sign(this.hero.x - e.x);
       const dy = Math.sign(this.hero.y - e.y);
       const candidates = [
@@ -893,13 +1127,11 @@ class MainScene extends Phaser.Scene {
         if (!this.inBounds(c.x, c.y)) continue;
 
         if (c.x === this.hero.x && c.y === this.hero.y) {
-          this.resolveBattle(i);
+          this.resolveBattle(i, c.x, c.y);
           break;
         }
 
-        if (!this.isPassable(c.x, c.y)) continue;
-        if (this.enemies.some((other, idx) => idx !== i && other.x === c.x && other.y === c.y)) continue;
-
+        if (!this.canPlaceRect(c.x, c.y, 1, 1, false, e)) continue;
         e.x = c.x;
         e.y = c.y;
         break;
@@ -989,18 +1221,25 @@ class MainScene extends Phaser.Scene {
     this.unitGraphics.fillEllipse(px + unit / 2, py + unit - 2, unit - 6, 6);
 
     if (kind === "finalBoss") {
-      this.unitGraphics.fillStyle(0x4a148c, 0.92);
-      this.unitGraphics.fillRoundedRect(px + 8, py + 10, unit - 16, unit - 18, 12);
-      this.unitGraphics.fillStyle(0xffd54f, 1);
-      this.unitGraphics.fillTriangle(px + 16, py + 16, px + 26, py + 4, px + 34, py + 16);
-      this.unitGraphics.fillTriangle(px + unit - 16, py + 16, px + unit - 26, py + 4, px + unit - 34, py + 16);
-      this.unitGraphics.fillStyle(0xfff8e1, 1);
-      this.unitGraphics.fillCircle(px + unit / 2, py + 26, 10);
+      this.unitGraphics.fillStyle(0x004d40, 0.95);
+      this.unitGraphics.fillEllipse(px + unit / 2, py + unit - 10, unit - 8, 18);
+      this.unitGraphics.fillStyle(0x26a69a, 0.98);
+      this.unitGraphics.fillRoundedRect(px + 14, py + 18, unit - 28, unit - 34, 18);
+      this.unitGraphics.fillTriangle(px + 18, py + unit - 26, px + 2, py + unit - 8, px + 22, py + unit - 10);
+      this.unitGraphics.fillTriangle(px + unit - 18, py + unit - 26, px + unit - 2, py + unit - 8, px + unit - 22, py + unit - 10);
+      this.unitGraphics.fillStyle(0x80cbc4, 1);
+      this.unitGraphics.fillTriangle(px + 14, py + 32, px + unit / 2, py + 6, px + unit - 14, py + 32);
+      this.unitGraphics.fillTriangle(px + 8, py + 44, px + unit / 2 - 10, py + 18, px + unit / 2 - 2, py + 50);
+      this.unitGraphics.fillTriangle(px + unit - 8, py + 44, px + unit / 2 + 10, py + 18, px + unit / 2 + 2, py + 50);
+      this.unitGraphics.fillStyle(0xe0f2f1, 1);
+      this.unitGraphics.fillCircle(px + unit / 2, py + 28, 13);
       this.unitGraphics.fillStyle(0xff5252, 1);
-      this.unitGraphics.fillCircle(px + unit / 2 - 8, py + 25, 2.5);
-      this.unitGraphics.fillCircle(px + unit / 2 + 8, py + 25, 2.5);
-      this.unitGraphics.fillStyle(0xffca28, 1);
-      this.unitGraphics.fillRect(px + unit / 2 - 12, py + unit - 22, 24, 8);
+      this.unitGraphics.fillCircle(px + unit / 2 - 8, py + 26, 3.5);
+      this.unitGraphics.fillCircle(px + unit / 2 + 8, py + 26, 3.5);
+      this.unitGraphics.fillStyle(0xffb300, 0.95);
+      this.unitGraphics.fillTriangle(px + unit / 2 - 8, py + 37, px + unit / 2 + 8, py + 37, px + unit / 2, py + 52);
+      this.unitGraphics.fillStyle(0xffecb3, 0.8);
+      this.unitGraphics.fillTriangle(px + unit / 2 - 6, py + 40, px + unit / 2 + 6, py + 40, px + unit / 2, py + 58);
       return;
     }
 
@@ -1150,13 +1389,13 @@ class MainScene extends Phaser.Scene {
 
     for (const e of this.enemies) {
       if (e.type === "miniboss") this.drawCharacter(e.x, e.y, "miniboss", 2);
-      else if (e.type === "finalBoss") this.drawCharacter(e.x, e.y, "finalBoss", 2);
+      else if (e.type === "finalBoss") this.drawCharacter(e.x, e.y, "finalBoss", 4);
       else if (e.type === "scout") this.drawCharacter(e.x, e.y, "scout");
       else if (e.type === "soldier") this.drawCharacter(e.x, e.y, "enemySoldier");
       else if (e.type === "knight") this.drawCharacter(e.x, e.y, "enemyKnight");
 
       if (["miniboss", "finalBoss"].includes(e.type)) {
-        const size = 2;
+        const size = this.getEnemySize(e);
         this.drawBar(
           e.x * this.tileSize + 2,
           e.y * this.tileSize - 5,
@@ -1181,8 +1420,9 @@ class MainScene extends Phaser.Scene {
     }
 
     for (const effect of this.worldEffects) {
-      const age = Phaser.Math.Clamp((effect.expiresAt - this.time.now) / 3200, 0, 1);
-      const color = effect.type === "angel" ? 0xfff59d : 0xce93d8;
+      const life = effect.type === "excalibur" ? 1400 : 3200;
+      const age = Phaser.Math.Clamp((effect.expiresAt - this.time.now) / life, 0, 1);
+      const color = effect.type === "angel" ? 0xfff59d : effect.type === "excalibur" ? 0xffd54f : 0xce93d8;
       const px = effect.x * this.tileSize;
       const py = effect.y * this.tileSize;
       const size = effect.size * this.tileSize;
@@ -1195,6 +1435,10 @@ class MainScene extends Phaser.Scene {
       if (effect.type === "angel") {
         this.unitGraphics.fillCircle(px + 12, py + 10, 5);
         this.unitGraphics.fillTriangle(px + 4, py + 18, px + 12, py + 7, px + 20, py + 18);
+      } else if (effect.type === "excalibur") {
+        this.drawSword(px + size / 2 - 12, py + size / 2 - 20, 1.2 + age * 0.5, 0xffd54f);
+        this.unitGraphics.fillStyle(0xfff8e1, 0.45 + age * 0.3);
+        this.unitGraphics.fillCircle(px + size / 2, py + size / 2, 16 + age * 18);
       } else {
         this.unitGraphics.fillCircle(px + 12, py + 10, 5);
         this.unitGraphics.fillTriangle(px + 6, py + 6, px + 10, py + 0, px + 12, py + 8);
@@ -1238,6 +1482,9 @@ class MainScene extends Phaser.Scene {
 
     this.drawCharacter(this.hero.x, this.hero.y, "hero", 1, { hasExcalibur: this.hero.hasExcalibur });
     this.drawBar(this.hero.x * this.tileSize + 2, this.hero.y * this.tileSize - 5, this.tileSize - 4, 4, this.hero.hp, this.hero.maxHp, 0x81c784);
+
+    this.mageMpText.setPosition(mageX * this.tileSize - 4, this.hero.y * this.tileSize - 18);
+    this.mageMpText.setText(`大魔法使い MP ${Math.floor(this.mage?.mana ?? 0)}/${this.mage?.maxMana ?? 0}`);
   }
 
   updateHud() {
@@ -1254,7 +1501,7 @@ class MainScene extends Phaser.Scene {
             : "進軍中";
 
     this.syncDomButtons();
-    this.infoText.setText(`状態 ${phaseLabel}  STAGE ${this.stage}  SCORE ${this.score}  HP ${this.hero?.hp ?? 8}/${this.hero?.maxHp ?? 8}  兵 ${soldiers}  騎士 ${knights}  魔 ${Math.floor(this.mage?.mana ?? 0)}/${this.mage?.maxMana ?? 0}  僧 ${Math.floor(this.priest?.mana ?? 0)}/${this.priest?.maxMana ?? 0}  聖剣 ${this.hero?.hasExcalibur ? "有" : "無"}`);
+    this.infoText.setText(`状態 ${phaseLabel}  STAGE ${this.stage}  SCORE ${this.score}  HP ${this.hero?.hp ?? 8}/${this.hero?.maxHp ?? 8}  兵 ${soldiers}  騎士 ${knights}  魔 ${Math.floor(this.mage?.mana ?? 0)}/${this.mage?.maxMana ?? 0}  僧 ${Math.floor(this.priest?.mana ?? 0)}/${this.priest?.maxMana ?? 0}  聖剣 ${this.hero?.hasExcalibur ? "有" : "無"}  自然回復 ${this.damageRegenDelay > 0 ? "待機中" : "有効"}`);
     this.messageText.setText(this.message);
   }
 }
