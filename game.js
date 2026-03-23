@@ -160,23 +160,27 @@ class MainScene extends Phaser.Scene {
     this.resetWorldState();
 
     this.colors = {
-      floor: 0x222222,
-      wall: 0x555555,
-      castle: 0x5e35b1,
-      forest: 0x2e7d32,
-      water: 0x1565c0,
-      bridge: 0x8d6e63,
-      mountain: 0x757575,
-      hero: 0xffe082,
-      soldier: 0x66bb6a,
-      knight: 0xc5e1a5,
-      scout: 0xff8a65,
-      enemy: 0xef5350,
-      enemyKnight: 0xe57373,
-      prisoner: 0x4dd0e1,
-      excalibur: 0xffd54f,
-      mage: 0x90caf9,
-      priest: 0xfff59d,
+      floor: 0x1b241d,
+      wall: 0x425046,
+      castle: 0x6b5634,
+      forest: 0x2f5a3f,
+      water: 0x2e5f63,
+      bridge: 0x8a6a3a,
+      mountain: 0x6d6f58,
+      hero: 0xf2d07c,
+      soldier: 0x7faa78,
+      knight: 0xc9ddb5,
+      scout: 0xc96b4b,
+      enemy: 0xa84634,
+      enemyKnight: 0xc07256,
+      prisoner: 0x8fc8bb,
+      excalibur: 0xe0c063,
+      mage: 0x7db7af,
+      priest: 0xf3e7b0,
+      uiInk: 0x120d08,
+      uiPanel: 0x1a241c,
+      uiRune: 0xd2b16f,
+      uiMist: 0xeedfb9,
     };
 
     this.cursors = this.input.keyboard.createCursorKeys();
@@ -187,24 +191,27 @@ class MainScene extends Phaser.Scene {
     this.overlayGraphics = this.add.graphics().setDepth(100);
 
     this.infoText = this.add.text(8, 8, "", {
+      fontFamily: "Georgia, serif",
       fontSize: "14px",
-      color: "#ffffff",
-      backgroundColor: "#000000",
+      color: "#f4ead2",
+      backgroundColor: "#1a120b",
       padding: { x: 8, y: 5 },
     }).setDepth(1000).setScrollFactor(0);
 
     this.messageText = this.add.text(8, 38, "", {
+      fontFamily: "Georgia, serif",
       fontSize: "14px",
-      color: "#dddddd",
-      backgroundColor: "#000000",
+      color: "#eadfc4",
+      backgroundColor: "#1a120b",
       padding: { x: 8, y: 5 },
       wordWrap: { width: 760 },
     }).setDepth(1000).setScrollFactor(0);
 
     this.mageMpText = this.add.text(0, 0, "", {
+      fontFamily: "Georgia, serif",
       fontSize: "12px",
-      color: "#eaf4ff",
-      backgroundColor: "rgba(8, 12, 18, 0.8)",
+      color: "#eff4e7",
+      backgroundColor: "rgba(20, 26, 18, 0.82)",
       padding: { x: 4, y: 2 },
     }).setDepth(1001);
 
@@ -217,31 +224,35 @@ class MainScene extends Phaser.Scene {
 
   setupOverlayText() {
     this.overlayTitle = this.add.text(this.scale.width / 2, 140, "Kingdom Wars DX", {
+      fontFamily: "Georgia, serif",
       fontSize: "40px",
       fontStyle: "bold",
-      color: "#fff6d5",
-      stroke: "#000000",
+      color: "#f4e0ae",
+      stroke: "#120d08",
       strokeThickness: 5,
       align: "center",
     }).setOrigin(0.5).setDepth(101);
 
     this.overlaySubtitle = this.add.text(this.scale.width / 2, 186, "王国軍を率いて敵城を攻略せよ", {
+      fontFamily: "Georgia, serif",
       fontSize: "18px",
-      color: "#c7d8ff",
+      color: "#c8d8b8",
       align: "center",
     }).setOrigin(0.5).setDepth(101);
 
     this.overlayBody = this.add.text(this.scale.width / 2, 300, "", {
+      fontFamily: "Georgia, serif",
       fontSize: "18px",
-      color: "#ffffff",
+      color: "#f6efdf",
       align: "center",
-      lineSpacing: 8,
+      lineSpacing: 10,
       wordWrap: { width: 560 },
     }).setOrigin(0.5).setDepth(101);
 
     this.overlayHint = this.add.text(this.scale.width / 2, 430, "", {
+      fontFamily: "Georgia, serif",
       fontSize: "16px",
-      color: "#ffe082",
+      color: "#d7bf78",
       align: "center",
     }).setOrigin(0.5).setDepth(101);
   }
@@ -354,10 +365,11 @@ class MainScene extends Phaser.Scene {
     this.renderAll();
 
     this.overlayGraphics.clear();
-    this.overlayGraphics.fillStyle(0x040711, 0.78);
+    this.overlayGraphics.fillStyle(0x120d08, 0.82);
     this.overlayGraphics.fillRoundedRect(72, 92, 624, 384, 24);
-    this.overlayGraphics.lineStyle(2, 0x87a7ff, 0.35);
+    this.overlayGraphics.lineStyle(2, 0xd2b16f, 0.45);
     this.overlayGraphics.strokeRoundedRect(72, 92, 624, 384, 24);
+    this.drawOverlayRunes(72, 92, 624, 384);
 
     this.overlayTitle.setText("Kingdom Wars DX").setVisible(true);
     this.overlaySubtitle.setText("王国軍を率いて敵城を攻略せよ").setVisible(true);
@@ -367,6 +379,7 @@ class MainScene extends Phaser.Scene {
       "・王の後方には騎士・大魔法使い・僧侶が最初から同行します",
       "・時間経過で王のHPが少しずつ自動回復します",
       "・聖剣を拾うと強敵と4x4 の龍ラスボスに有利になります",
+      "・翡翠色の平原と金の紋様は、古きケルトの戦場を映しています",
     ]).setVisible(true);
     this.overlayHint.setText("Enter / Space / 開始ボタンで出撃").setVisible(true);
     this.syncDomButtons();
@@ -374,10 +387,11 @@ class MainScene extends Phaser.Scene {
 
   showStageClearOverlay() {
     this.overlayGraphics.clear();
-    this.overlayGraphics.fillStyle(0x03140b, 0.78);
+    this.overlayGraphics.fillStyle(0x102116, 0.84);
     this.overlayGraphics.fillRoundedRect(120, 160, 528, 220, 22);
-    this.overlayGraphics.lineStyle(2, 0x72ffae, 0.35);
+    this.overlayGraphics.lineStyle(2, 0x9cc78a, 0.45);
     this.overlayGraphics.strokeRoundedRect(120, 160, 528, 220, 22);
+    this.drawOverlayRunes(120, 160, 528, 220);
     this.audio?.setMusicEnabled(false);
     this.audio?.playSfx("clear");
     this.overlayTitle.setText("STAGE CLEAR").setVisible(true);
@@ -389,10 +403,11 @@ class MainScene extends Phaser.Scene {
 
   showGameOverOverlay() {
     this.overlayGraphics.clear();
-    this.overlayGraphics.fillStyle(0x180404, 0.8);
+    this.overlayGraphics.fillStyle(0x24110c, 0.84);
     this.overlayGraphics.fillRoundedRect(120, 160, 528, 220, 22);
-    this.overlayGraphics.lineStyle(2, 0xff7b7b, 0.35);
+    this.overlayGraphics.lineStyle(2, 0xc47857, 0.45);
     this.overlayGraphics.strokeRoundedRect(120, 160, 528, 220, 22);
+    this.drawOverlayRunes(120, 160, 528, 220);
     this.audio?.setMusicEnabled(false);
     this.audio?.playSfx("damage");
     this.overlayTitle.setText("GAME OVER").setVisible(true);
@@ -433,12 +448,34 @@ class MainScene extends Phaser.Scene {
     }
   }
 
+  drawOverlayRunes(x, y, width, height) {
+    const g = this.overlayGraphics;
+    g.lineStyle(1, 0xd2b16f, 0.24);
+    const margin = 18;
+    for (const cx of [x + margin, x + width - margin]) {
+      for (const cy of [y + margin, y + height - margin]) {
+        g.strokeCircle(cx, cy, 10);
+        g.strokeCircle(cx, cy, 18);
+        g.beginPath();
+        g.moveTo(cx - 18, cy);
+        g.lineTo(cx + 18, cy);
+        g.moveTo(cx, cy - 18);
+        g.lineTo(cx, cy + 18);
+        g.strokePath();
+      }
+    }
+
+    g.lineStyle(1, 0xd2b16f, 0.18);
+    g.strokeRoundedRect(x + 10, y + 10, width - 20, height - 20, 18);
+  }
+
   showPauseOverlay() {
     this.overlayGraphics.clear();
-    this.overlayGraphics.fillStyle(0x041019, 0.76);
+    this.overlayGraphics.fillStyle(0x101a15, 0.82);
     this.overlayGraphics.fillRoundedRect(150, 170, 468, 204, 22);
-    this.overlayGraphics.lineStyle(2, 0x8cc8ff, 0.35);
+    this.overlayGraphics.lineStyle(2, 0xb39a61, 0.42);
     this.overlayGraphics.strokeRoundedRect(150, 170, 468, 204, 22);
+    this.drawOverlayRunes(150, 170, 468, 204);
     this.overlayTitle.setText("PAUSE").setVisible(true);
     this.overlaySubtitle.setText("進軍を中断中").setVisible(true);
     this.overlayBody.setText("開始ボタンまたは Enter / Space で戦線へ復帰します。\nやり直しボタンならこのステージを最初から再挑戦できます。").setVisible(true);
@@ -1155,14 +1192,14 @@ class MainScene extends Phaser.Scene {
     this.mapGraphics.fillRect(px, py, this.tileSize, this.tileSize);
 
     if (tile === this.TILES.FOREST) {
-      this.mapGraphics.fillStyle(0x1b5e20, 0.85);
+      this.mapGraphics.fillStyle(0x244d34, 0.9);
       this.mapGraphics.fillTriangle(px + 4, py + 18, px + 12, py + 4, px + 20, py + 18);
-      this.mapGraphics.fillStyle(0x2e7d32, 0.9);
+      this.mapGraphics.fillStyle(0x4a7d53, 0.95);
       this.mapGraphics.fillTriangle(px + 2, py + 22, px + 8, py + 10, px + 14, py + 22);
     }
 
     if (tile === this.TILES.WATER) {
-      this.mapGraphics.lineStyle(2, 0x63a4ff, 0.5);
+      this.mapGraphics.lineStyle(2, 0x9cc7b2, 0.4);
       this.mapGraphics.beginPath();
       this.mapGraphics.moveTo(px + 2, py + 8);
       this.mapGraphics.lineTo(px + 9, py + 6);
@@ -1172,16 +1209,16 @@ class MainScene extends Phaser.Scene {
     }
 
     if (tile === this.TILES.MOUNTAIN) {
-      this.mapGraphics.fillStyle(0x9e9e9e, 0.85);
+      this.mapGraphics.fillStyle(0x74755c, 0.9);
       this.mapGraphics.fillTriangle(px + 2, py + 22, px + 10, py + 6, px + 18, py + 22);
-      this.mapGraphics.fillStyle(0xbdbdbd, 0.7);
+      this.mapGraphics.fillStyle(0xa4a58a, 0.72);
       this.mapGraphics.fillTriangle(px + 8, py + 22, px + 16, py + 8, px + 22, py + 22);
     }
 
     if (tile === this.TILES.CASTLE) {
-      this.mapGraphics.fillStyle(0xb39ddb, 1);
+      this.mapGraphics.fillStyle(0x8f7446, 1);
       this.mapGraphics.fillRect(px + 3, py + 7, 18, 10);
-      this.mapGraphics.fillStyle(0x311b92, 1);
+      this.mapGraphics.fillStyle(0x47351d, 1);
       this.mapGraphics.fillRect(px + 4, py + 5, 4, 4);
       this.mapGraphics.fillRect(px + 10, py + 3, 4, 6);
       this.mapGraphics.fillRect(px + 16, py + 5, 4, 4);
@@ -1190,22 +1227,22 @@ class MainScene extends Phaser.Scene {
 
     const worldTile = this.worldMap?.[y]?.[x] ?? this.WORLD_TILES.NONE;
     if (worldTile === this.WORLD_TILES.LIGHT) {
-      this.mapGraphics.fillStyle(0xfff9c4, 0.35);
+      this.mapGraphics.fillStyle(0xf2deb0, 0.22);
       this.mapGraphics.fillRect(px, py, this.tileSize, this.tileSize);
-      this.mapGraphics.fillStyle(0xffffff, 0.7);
+      this.mapGraphics.fillStyle(0xfaf3df, 0.68);
       this.mapGraphics.fillCircle(px + 7, py + 7, 2);
       this.mapGraphics.fillCircle(px + 16, py + 11, 1.5);
     } else if (worldTile === this.WORLD_TILES.DARK) {
-      this.mapGraphics.fillStyle(0x311b92, 0.28);
+      this.mapGraphics.fillStyle(0x2d2316, 0.36);
       this.mapGraphics.fillRect(px, py, this.tileSize, this.tileSize);
-      this.mapGraphics.fillStyle(0x7c4dff, 0.55);
+      this.mapGraphics.fillStyle(0x87683d, 0.5);
       this.mapGraphics.fillCircle(px + 8, py + 16, 2);
       this.mapGraphics.fillCircle(px + 17, py + 8, 1.5);
     }
   }
 
   drawSword(px, py, scale = 1, color = 0xffd54f) {
-    this.unitGraphics.fillStyle(0xd7e3ff, 1);
+    this.unitGraphics.fillStyle(0xd7ddd8, 1);
     this.unitGraphics.fillRect(px + 10 * scale, py + 3 * scale, 2 * scale, 10 * scale);
     this.unitGraphics.fillStyle(color, 1);
     this.unitGraphics.fillTriangle(px + 8 * scale, py + 5 * scale, px + 14 * scale, py + 5 * scale, px + 11 * scale, py + 1 * scale);
@@ -1221,50 +1258,50 @@ class MainScene extends Phaser.Scene {
     this.unitGraphics.fillEllipse(px + unit / 2, py + unit - 2, unit - 6, 6);
 
     if (kind === "finalBoss") {
-      this.unitGraphics.fillStyle(0x004d40, 0.95);
+      this.unitGraphics.fillStyle(0x244737, 0.95);
       this.unitGraphics.fillEllipse(px + unit / 2, py + unit - 10, unit - 8, 18);
-      this.unitGraphics.fillStyle(0x26a69a, 0.98);
+      this.unitGraphics.fillStyle(0x5c947c, 0.98);
       this.unitGraphics.fillRoundedRect(px + 14, py + 18, unit - 28, unit - 34, 18);
       this.unitGraphics.fillTriangle(px + 18, py + unit - 26, px + 2, py + unit - 8, px + 22, py + unit - 10);
       this.unitGraphics.fillTriangle(px + unit - 18, py + unit - 26, px + unit - 2, py + unit - 8, px + unit - 22, py + unit - 10);
-      this.unitGraphics.fillStyle(0x80cbc4, 1);
+      this.unitGraphics.fillStyle(0xa5c989, 1);
       this.unitGraphics.fillTriangle(px + 14, py + 32, px + unit / 2, py + 6, px + unit - 14, py + 32);
       this.unitGraphics.fillTriangle(px + 8, py + 44, px + unit / 2 - 10, py + 18, px + unit / 2 - 2, py + 50);
       this.unitGraphics.fillTriangle(px + unit - 8, py + 44, px + unit / 2 + 10, py + 18, px + unit / 2 + 2, py + 50);
-      this.unitGraphics.fillStyle(0xe0f2f1, 1);
+      this.unitGraphics.fillStyle(0xe6f0dc, 1);
       this.unitGraphics.fillCircle(px + unit / 2, py + 28, 13);
-      this.unitGraphics.fillStyle(0xff5252, 1);
+      this.unitGraphics.fillStyle(0xffcf6e, 1);
       this.unitGraphics.fillCircle(px + unit / 2 - 8, py + 26, 3.5);
       this.unitGraphics.fillCircle(px + unit / 2 + 8, py + 26, 3.5);
-      this.unitGraphics.fillStyle(0xffb300, 0.95);
+      this.unitGraphics.fillStyle(0xdba84f, 0.95);
       this.unitGraphics.fillTriangle(px + unit / 2 - 8, py + 37, px + unit / 2 + 8, py + 37, px + unit / 2, py + 52);
-      this.unitGraphics.fillStyle(0xffecb3, 0.8);
+      this.unitGraphics.fillStyle(0xf6deb0, 0.8);
       this.unitGraphics.fillTriangle(px + unit / 2 - 6, py + 40, px + unit / 2 + 6, py + 40, px + unit / 2, py + 58);
       return;
     }
 
     if (kind === "miniboss") {
-      this.unitGraphics.fillStyle(0x6a1b9a, 0.94);
+      this.unitGraphics.fillStyle(0x5a3b2a, 0.94);
       this.unitGraphics.fillRoundedRect(px + 4, py + 7, unit - 8, unit - 11, 8);
-      this.unitGraphics.fillStyle(0xce93d8, 1);
+      this.unitGraphics.fillStyle(0xc9b07b, 1);
       this.unitGraphics.fillCircle(px + unit / 2, py + 14, 7);
-      this.unitGraphics.fillStyle(0x2b0b3f, 1);
+      this.unitGraphics.fillStyle(0x24140d, 1);
       this.unitGraphics.fillTriangle(px + 8, py + 10, px + 14, py + 1, px + 17, py + 12);
       this.unitGraphics.fillTriangle(px + unit - 8, py + 10, px + unit - 14, py + 1, px + unit - 17, py + 12);
       return;
     }
 
     const base = {
-      hero: { body: 0xffe082, cape: 0xff7043, accent: 0xffca28 },
-      soldier: { body: 0x66bb6a, cape: 0x2e7d32, accent: 0xcfd8dc },
-      knight: { body: 0xc5e1a5, cape: 0x558b2f, accent: 0xef5350 },
-      mage: { body: 0x90caf9, cape: 0x3949ab, accent: 0xe1f5fe },
-      priest: { body: 0xfff59d, cape: 0x8d6e63, accent: 0xffffff },
-      scout: { body: 0xff8a65, cape: 0xbf360c, accent: 0x212121 },
-      enemySoldier: { body: 0xef5350, cape: 0xb71c1c, accent: 0x37474f },
-      enemyKnight: { body: 0xe57373, cape: 0x880e4f, accent: 0x212121 },
-      prisoner: { body: 0x4dd0e1, cape: 0x006064, accent: 0xf5f5f5 },
-      excalibur: { body: 0xffd54f, cape: 0xfff8e1, accent: 0x90caf9 },
+      hero: { body: 0xd7b15b, cape: 0x7d4121, accent: 0xf2d27e },
+      soldier: { body: 0x527b4f, cape: 0x274431, accent: 0xc8d8b8 },
+      knight: { body: 0x718853, cape: 0x354b28, accent: 0xdeebbc },
+      mage: { body: 0x45646b, cape: 0x243c41, accent: 0xb7d7d5 },
+      priest: { body: 0xcabda5, cape: 0x6f5a41, accent: 0xf3e7b0 },
+      scout: { body: 0xc96b4b, cape: 0x733321, accent: 0x2c1e15 },
+      enemySoldier: { body: 0xa84634, cape: 0x6a2319, accent: 0x425046 },
+      enemyKnight: { body: 0xbd6a4d, cape: 0x5b2a1c, accent: 0x2c1e15 },
+      prisoner: { body: 0x6aaea4, cape: 0x2c5f57, accent: 0xe1f3ec },
+      excalibur: { body: 0xe0c063, cape: 0xf6edd2, accent: 0x8fc8bb },
     }[kind];
 
     const headX = px + 12;
@@ -1273,8 +1310,8 @@ class MainScene extends Phaser.Scene {
     const bodyY = py + 13;
 
     if (kind === "excalibur") {
-      this.drawSword(px, py + 2, 1, 0xffd54f);
-      this.unitGraphics.fillStyle(0xfff59d, 0.8);
+      this.drawSword(px, py + 2, 1, 0xe0c063);
+      this.unitGraphics.fillStyle(0xf3e7b0, 0.8);
       this.unitGraphics.fillCircle(px + 11, py + 6, 4);
       return;
     }
@@ -1292,39 +1329,39 @@ class MainScene extends Phaser.Scene {
       this.unitGraphics.fillStyle(base.accent, 1);
       this.unitGraphics.fillTriangle(px + 7, py + 6, px + 11, py + 1, px + 13, py + 6);
       this.unitGraphics.fillTriangle(px + 11, py + 6, px + 15, py + 1, px + 17, py + 6);
-      this.unitGraphics.fillStyle(0x8d6e63, 1);
+      this.unitGraphics.fillStyle(0x8f6a45, 1);
       this.unitGraphics.fillRect(px + 16, py + 13, 2, 9);
-      if (extras.hasExcalibur) this.drawSword(px + 7, py + 1, 0.9, 0xffd54f);
+      if (extras.hasExcalibur) this.drawSword(px + 7, py + 1, 0.9, 0xe0c063);
     }
 
     if (kind === "soldier") {
       this.unitGraphics.fillStyle(base.accent, 1);
       this.unitGraphics.fillRect(px + 7, py + 3, 10, 4);
-      this.unitGraphics.fillStyle(0x90a4ae, 1);
+      this.unitGraphics.fillStyle(0xb6b4a1, 1);
       this.unitGraphics.fillRect(px + 4, py + 15, 3, 6);
       this.unitGraphics.fillRoundedRect(px + 16, py + 14, 4, 6, 2);
     }
 
     if (kind === "knight") {
-      this.unitGraphics.fillStyle(0xb0bec5, 1);
+      this.unitGraphics.fillStyle(0xcdd6c7, 1);
       this.unitGraphics.fillRect(px + 6, py + 3, 12, 5);
       this.unitGraphics.fillStyle(base.accent, 1);
       this.unitGraphics.fillTriangle(px + 14, py + 3, px + 20, py + 8, px + 14, py + 10);
-      this.unitGraphics.fillStyle(0x8d6e63, 1);
+      this.unitGraphics.fillStyle(0x8f6a45, 1);
       this.unitGraphics.fillRect(px + 17, py + 12, 2, 10);
     }
 
     if (kind === "mage") {
       this.unitGraphics.fillStyle(base.cape, 1);
       this.unitGraphics.fillTriangle(px + 5, py + 13, px + 12, py + 2, px + 19, py + 13);
-      this.unitGraphics.fillStyle(0x6d4c41, 1);
+      this.unitGraphics.fillStyle(0x6f5a41, 1);
       this.unitGraphics.fillRect(px + 17, py + 10, 2, 11);
       this.unitGraphics.fillStyle(base.accent, 1);
       this.unitGraphics.fillCircle(px + 18, py + 9, 3);
     }
 
     if (kind === "priest") {
-      this.unitGraphics.fillStyle(0xffffff, 1);
+      this.unitGraphics.fillStyle(0xfaf3df, 1);
       this.unitGraphics.fillRect(px + 10, py + 14, 2, 8);
       this.unitGraphics.fillRect(px + 7, py + 17, 8, 2);
       this.unitGraphics.fillStyle(base.cape, 1);
@@ -1334,9 +1371,9 @@ class MainScene extends Phaser.Scene {
     if (kind === "scout") {
       this.unitGraphics.fillStyle(base.accent, 1);
       this.unitGraphics.fillRect(px + 6, py + 5, 11, 2);
-      this.unitGraphics.fillStyle(0x8d6e63, 1);
+      this.unitGraphics.fillStyle(0x8f6a45, 1);
       this.unitGraphics.fillRect(px + 16, py + 15, 2, 7);
-      this.unitGraphics.fillStyle(0xcfd8dc, 1);
+      this.unitGraphics.fillStyle(0xe2e0d1, 1);
       this.unitGraphics.fillTriangle(px + 18, py + 14, px + 22, py + 17, px + 18, py + 19);
     }
 
@@ -1345,17 +1382,17 @@ class MainScene extends Phaser.Scene {
       this.unitGraphics.fillRect(px + 6, py + 4, 12, 4);
       this.unitGraphics.fillTriangle(px + 6, py + 5, px + 3, py + 10, px + 8, py + 9);
       this.unitGraphics.fillTriangle(px + 18, py + 5, px + 21, py + 10, px + 16, py + 9);
-      this.unitGraphics.fillStyle(0x455a64, 1);
+      this.unitGraphics.fillStyle(0x425046, 1);
       this.unitGraphics.fillRoundedRect(px + 4, py + 15, 4, 6, 2);
     }
 
     if (kind === "enemyKnight") {
-      this.unitGraphics.fillStyle(0xb0bec5, 1);
+      this.unitGraphics.fillStyle(0xcdd6c7, 1);
       this.unitGraphics.fillRect(px + 6, py + 3, 12, 5);
       this.unitGraphics.fillStyle(base.accent, 1);
       this.unitGraphics.fillTriangle(px + 9, py + 2, px + 12, py - 1, px + 15, py + 2);
       this.unitGraphics.fillTriangle(px + 13, py + 2, px + 16, py - 1, px + 19, py + 2);
-      this.unitGraphics.fillStyle(0x5d4037, 1);
+      this.unitGraphics.fillStyle(0x5c4632, 1);
       this.unitGraphics.fillRect(px + 17, py + 11, 2, 11);
     }
 
@@ -1363,7 +1400,7 @@ class MainScene extends Phaser.Scene {
       this.unitGraphics.fillStyle(base.accent, 1);
       this.unitGraphics.fillRect(px + 8, py + 14, 2, 8);
       this.unitGraphics.fillRect(px + 14, py + 14, 2, 8);
-      this.unitGraphics.fillStyle(0xffffff, 0.6);
+      this.unitGraphics.fillStyle(0xfaf3df, 0.6);
       this.unitGraphics.fillRect(px + 6, py + 15, 12, 2);
       this.unitGraphics.fillRect(px + 6, py + 19, 12, 2);
     }
@@ -1403,7 +1440,7 @@ class MainScene extends Phaser.Scene {
           4,
           e.hp,
           e.maxHp ?? e.hp,
-          e.type === "finalBoss" ? 0xffd54f : 0xce93d8
+          e.type === "finalBoss" ? 0xe0c063 : 0xc9b07b
         );
       }
     }
@@ -1422,7 +1459,7 @@ class MainScene extends Phaser.Scene {
     for (const effect of this.worldEffects) {
       const life = effect.type === "excalibur" ? 1400 : 3200;
       const age = Phaser.Math.Clamp((effect.expiresAt - this.time.now) / life, 0, 1);
-      const color = effect.type === "angel" ? 0xfff59d : effect.type === "excalibur" ? 0xffd54f : 0xce93d8;
+      const color = effect.type === "angel" ? 0xf3e7b0 : effect.type === "excalibur" ? 0xe0c063 : 0xc9b07b;
       const px = effect.x * this.tileSize;
       const py = effect.y * this.tileSize;
       const size = effect.size * this.tileSize;
@@ -1431,13 +1468,13 @@ class MainScene extends Phaser.Scene {
       this.unitGraphics.strokeRect(px, py, size, size);
       this.unitGraphics.fillStyle(color, 0.08 + age * 0.08);
       this.unitGraphics.fillRect(px, py, size, size);
-      this.unitGraphics.fillStyle(0xffffff, 0.7);
+      this.unitGraphics.fillStyle(0xfaf3df, 0.7);
       if (effect.type === "angel") {
         this.unitGraphics.fillCircle(px + 12, py + 10, 5);
         this.unitGraphics.fillTriangle(px + 4, py + 18, px + 12, py + 7, px + 20, py + 18);
       } else if (effect.type === "excalibur") {
-        this.drawSword(px + size / 2 - 12, py + size / 2 - 20, 1.2 + age * 0.5, 0xffd54f);
-        this.unitGraphics.fillStyle(0xfff8e1, 0.45 + age * 0.3);
+        this.drawSword(px + size / 2 - 12, py + size / 2 - 20, 1.2 + age * 0.5, 0xe0c063);
+        this.unitGraphics.fillStyle(0xf6edd2, 0.45 + age * 0.3);
         this.unitGraphics.fillCircle(px + size / 2, py + size / 2, 16 + age * 18);
       } else {
         this.unitGraphics.fillCircle(px + 12, py + 10, 5);
@@ -1454,7 +1491,7 @@ class MainScene extends Phaser.Scene {
       const ty = effect.toY * this.tileSize + this.tileSize * 0.5;
       const width = 4 + age * 6;
 
-      this.unitGraphics.lineStyle(width + 2, 0xffffff, 0.2 + age * 0.2);
+      this.unitGraphics.lineStyle(width + 2, 0xfaf3df, 0.2 + age * 0.2);
       this.unitGraphics.beginPath();
       this.unitGraphics.moveTo(sx, sy);
       this.unitGraphics.lineTo(tx, ty);
@@ -1510,7 +1547,7 @@ const config = {
   type: Phaser.AUTO,
   width: 768,
   height: 576,
-  backgroundColor: "#000000",
+  backgroundColor: "#08100c",
   parent: "game-container",
   scene: [MainScene],
 };
