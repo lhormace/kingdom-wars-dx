@@ -241,10 +241,17 @@ async function mountEnchant(container) {
 
 async function mountKiwi(container) {
   await loadScript(CDN.kiwi);
-  createTitle(container, "Kiwi.js: text demo（Canvas fallback）");
+  createTitle(container, "Kiwi.js: text demo");
 
   const holder = document.createElement("div");
   holder.id = `kiwi-${Date.now()}-${Math.floor(Math.random() * 10000)}`;
+  holder.style.width = "420px";
+  holder.style.maxWidth = "100%";
+  holder.style.height = "220px";
+  holder.style.position = "relative";
+  holder.style.overflow = "hidden";
+  holder.style.borderRadius = "10px";
+  holder.style.background = "#08100c";
   container.appendChild(holder);
 
   if (!window.Kiwi?.Game || !window.Kiwi?.State) {
@@ -262,6 +269,23 @@ async function mountKiwi(container) {
     width: 420,
     height: 220,
     plugins: [],
+    scaleType: window.Kiwi.Stage?.SCALE_NONE ?? 0,
+    bootCallback: (game) => {
+      if (game?.stage) {
+        game.stage.color = "08100c";
+      }
+      if (game?.stage?.container?.style) {
+        game.stage.container.style.width = "420px";
+        game.stage.container.style.height = "220px";
+        game.stage.container.style.maxWidth = "100%";
+        game.stage.container.style.overflow = "hidden";
+      }
+      if (game?.stage?.canvas?.style) {
+        game.stage.canvas.style.width = "100%";
+        game.stage.canvas.style.height = "100%";
+        game.stage.canvas.style.display = "block";
+      }
+    },
   };
 
   let game = null;
