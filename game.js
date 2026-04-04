@@ -378,6 +378,8 @@ class MainScene extends Phaser.Scene {
 
     window.addEventListener("keydown", this.handleMovementKeyDown, { passive: false });
     window.addEventListener("keyup", this.handleMovementKeyUp, { passive: false });
+    document.addEventListener("keydown", this.handleMovementKeyDown, { passive: false });
+    document.addEventListener("keyup", this.handleMovementKeyUp, { passive: false });
     window.addEventListener("blur", this.handleMovementBlur);
     this.input.keyboard.on("keydown", this.handleMovementKeyDown);
     this.input.keyboard.on("keyup", this.handleMovementKeyUp);
@@ -413,8 +415,16 @@ class MainScene extends Phaser.Scene {
     }
 
     this.input.on("pointerdown", () => {
-      this.game?.canvas?.focus?.();
+      this.focusGameCanvas();
     });
+  }
+
+  focusGameCanvas() {
+    const active = document.activeElement;
+    if (active && active !== document.body && typeof active.blur === "function") {
+      active.blur();
+    }
+    this.game?.canvas?.focus?.();
   }
 
   syncDomButtons() {
@@ -439,15 +449,18 @@ class MainScene extends Phaser.Scene {
     this.score = 0;
     this.kills = 0;
     this.startStage();
+    this.focusGameCanvas();
   }
 
   restartCurrentStage() {
     this.startStage();
+    this.focusGameCanvas();
   }
 
   beginNextStage() {
     this.phase = "playing";
     this.startStage();
+    this.focusGameCanvas();
   }
 
   startStage() {
