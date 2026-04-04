@@ -98,14 +98,11 @@ async function mountPhina(container) {
   const holder = document.createElement("div");
   holder.id = `phina-demo-${Date.now()}`;
   container.appendChild(holder);
-  const canvas = createCanvas(holder);
-  canvas.id = `${holder.id}-canvas`;
-
-  const app = window.phina.game.GameApp({
+  const app = window.phina.display.CanvasApp({
     width: 420,
     height: 220,
     fit: false,
-    query: `#${canvas.id}`,
+    append: false,
   });
 
   const scene = window.phina.game.DisplayScene({
@@ -116,6 +113,7 @@ async function mountPhina(container) {
   circle.setPosition(20, 110);
   circle.tweener.clear().to({ x: 400 }, 900).to({ x: 20 }, 900).setLoop(true);
 
+  holder.appendChild(app.domElement);
   app.replaceScene(scene);
   app.run();
 
