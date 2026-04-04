@@ -1,10 +1,10 @@
 const CDN = {
   phaser: "https://cdn.jsdelivr.net/npm/phaser@3/dist/phaser.js",
   phina: "https://cdn.jsdelivr.net/npm/phina.js@0.2.3/build/phina.min.js",
-  babylon: "https://cdn.jsdelivr.net/npm/babylonjs@7.41.2/babylon.js",
-  pixi: "https://cdn.jsdelivr.net/npm/pixi.js@8/dist/pixi.min.js",
-  enchant: "https://cdn.jsdelivr.net/npm/enchant.js@0.8.3/build/enchant.min.js",
-  kiwi: "https://cdnjs.cloudflare.com/ajax/libs/kiwi/1.4.0/kiwi.min.js",
+  babylon: "https://cdn.babylonjs.com/babylon.js",
+  pixi: "https://cdn.jsdelivr.net/npm/pixi.js@7.4.2/dist/pixi.min.js",
+  enchant: "https://cdn.jsdelivr.net/npm/enchant.js@0.8.3/build/enchant.js",
+  kiwi: "https://cdn.jsdelivr.net/npm/kiwi.js@1.4.0/dist/kiwi.min.js",
 };
 
 const scriptCache = new Map();
@@ -17,7 +17,10 @@ function loadScript(src) {
     script.src = src;
     script.async = true;
     script.onload = resolve;
-    script.onerror = () => reject(new Error(`Failed to load ${src}`));
+    script.onerror = () => {
+      scriptCache.delete(src);
+      reject(new Error(`Failed to load ${src}`));
+    };
     document.head.appendChild(script);
   });
 
@@ -97,9 +100,7 @@ async function mountPhina(container) {
   holder.id = appId;
   container.appendChild(holder);
 
-  window.phina.globalize();
-
-  const app = window.GameApp({
+  const app = window.phina.game.GameApp({
     startLabel: "main",
     width: 420,
     height: 220,
@@ -107,18 +108,16 @@ async function mountPhina(container) {
     append: false,
   });
 
-  window.DisplayScene({
-    label: "main",
-    init: function init() {
-      this.superInit({ width: 420, height: 220 });
-      const circle = window.CircleShape({ radius: 20, fill: "#d2b16f", stroke: "#eadfc4" }).addChildTo(this);
-      circle.setPosition(20, 110);
-      circle.tweener.clear().to({ x: 400 }, 900).to({ x: 20 }, 900).setLoop(true);
-    },
+  const scene = window.phina.display.DisplayScene({
+    width: 420,
+    height: 220,
   });
+  const circle = window.phina.display.CircleShape({ radius: 20, fill: "#d2b16f", stroke: "#eadfc4" }).addChildTo(scene);
+  circle.setPosition(20, 110);
+  circle.tweener.clear().to({ x: 400 }, 900).to({ x: 20 }, 900).setLoop(true);
 
   holder.appendChild(app.domElement);
-  app.replaceScene(window.MainScene());
+  app.replaceScene(scene);
   app.run();
 
   return () => app.stop();
@@ -159,10 +158,14 @@ async function mountPixi(container) {
   await loadScript(CDN.pixi);
   createTitle(container, "PixiJS: moving bar demo");
 
-  const app = new window.PIXI.Application();
-  await app.init({ width: 420, height: 220, background: "#08100c", antialias: true });
-  container.appendChild(app.canvas);
-  app.canvas.classList.add("library-demo-canvas");
+  const app = new window.PIXI.Application({
+    width: 420,
+    height: 220,
+    backgroundColor: 0x08100c,
+    antialias: true,
+  });
+  container.appendChild(app.view);
+  app.view.classList.add("library-demo-canvas");
 
   const bar = new window.PIXI.Graphics();
   bar.roundRect(0, 0, 80, 24, 8).fill(0xd2b16f);
@@ -177,7 +180,7 @@ async function mountPixi(container) {
     if (bar.x <= 0) dir = 1;
   });
 
-  return () => app.destroy(true, { children: true, texture: true });
+  return () => app.destroy(true, { children: true, texture: true, baseTexture: true });
 }
 
 async function mountEnchant(container) {
