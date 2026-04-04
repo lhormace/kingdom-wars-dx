@@ -189,6 +189,12 @@ class MainScene extends Phaser.Scene {
 
     this.cursors = this.input.keyboard.createCursorKeys();
     this.keys = this.input.keyboard.addKeys("W,A,S,D,F,R,ENTER,SPACE");
+    this.movementInput = {
+      left: { isDown: false, justPressed: false, lastPressedAt: 0 },
+      right: { isDown: false, justPressed: false, lastPressedAt: 0 },
+      up: { isDown: false, justPressed: false, lastPressedAt: 0 },
+      down: { isDown: false, justPressed: false, lastPressedAt: 0 },
+    };
 
     this.mapGraphics = this.add.graphics();
     this.unitGraphics = this.add.graphics();
@@ -221,6 +227,7 @@ class MainScene extends Phaser.Scene {
 
     this.setupOverlayText();
     this.bindDomButtons();
+    this.bindMovementInput();
     this.showTitleOverlay();
     this.syncDomButtons();
     this.warRoom = createWarRoom();
@@ -283,6 +290,52 @@ class MainScene extends Phaser.Scene {
       if (this.phase === "title") this.startNewRun();
       else this.restartCurrentStage();
     });
+  }
+
+  bindMovementInput() {
+    const keyToDirection = {
+      ArrowLeft: "left",
+      KeyA: "left",
+      ArrowRight: "right",
+      KeyD: "right",
+      ArrowUp: "up",
+      KeyW: "up",
+      ArrowDown: "down",
+      KeyS: "down",
+    };
+
+    this.handleMovementKeyDown = (event) => {
+      const direction = keyToDirection[event.code];
+      if (!direction) return;
+
+      const state = this.movementInput[direction];
+      if (!state.isDown) {
+        state.justPressed = true;
+        state.lastPressedAt = performance.now();
+      }
+      state.isDown = true;
+      event.preventDefault();
+    };
+
+    this.handleMovementKeyUp = (event) => {
+      const direction = keyToDirection[event.code];
+      if (!direction) return;
+      const state = this.movementInput[direction];
+      state.isDown = false;
+      state.justPressed = false;
+      event.preventDefault();
+    };
+
+    this.handleMovementBlur = () => {
+      for (const state of Object.values(this.movementInput)) {
+        state.isDown = false;
+        state.justPressed = false;
+      }
+    };
+
+    window.addEventListener("keydown", this.handleMovementKeyDown, { passive: false });
+    window.addEventListener("keyup", this.handleMovementKeyUp, { passive: false });
+    window.addEventListener("blur", this.handleMovementBlur);
   }
 
   syncDomButtons() {
@@ -777,21 +830,29 @@ class MainScene extends Phaser.Scene {
 
   getMoveIntent(now) {
     const justPressed = [
-      { key: this.cursors.left, alt: this.keys.A, dx: -1, dy: 0 },
-      { key: this.cursors.right, alt: this.keys.D, dx: 1, dy: 0 },
-      { key: this.cursors.up, alt: this.keys.W, dx: 0, dy: -1 },
-      { key: this.cursors.down, alt: this.keys.S, dx: 0, dy: 1 },
-    ].find(({ key, alt }) => Phaser.Input.Keyboard.JustDown(key) || Phaser.Input.Keyboard.JustDown(alt));
+      { dir: "left", dx: -1, dy: 0 },
+      { dir: "right", dx: 1, dy: 0 },
+      { dir: "up", dx: 0, dy: -1 },
+      { dir: "down", dx: 0, dy: 1 },
+    ].find(({ dir }) => this.movementInput[dir].justPressed);
 
-    if (justPressed) return justPressed;
+    if (justPressed) {
+      this.movementInput[justPressed.dir].justPressed = false;
+      return justPressed;
+    }
     if (now - this.lastMoveTime < this.moveRepeatMs) return null;
 
-    return [
-      { key: this.cursors.left, alt: this.keys.A, dx: -1, dy: 0 },
-      { key: this.cursors.right, alt: this.keys.D, dx: 1, dy: 0 },
-      { key: this.cursors.up, alt: this.keys.W, dx: 0, dy: -1 },
-      { key: this.cursors.down, alt: this.keys.S, dx: 0, dy: 1 },
-    ].find(({ key, alt }) => key.isDown || alt.isDown) ?? null;
+    const heldDirections = [
+      { dir: "left", dx: -1, dy: 0 },
+      { dir: "right", dx: 1, dy: 0 },
+      { dir: "up", dx: 0, dy: -1 },
+      { dir: "down", dx: 0, dy: 1 },
+    ].filter(({ dir }) => this.movementInput[dir].isDown);
+
+    if (heldDirections.length === 0) return null;
+
+    heldDirections.sort((a, b) => this.movementInput[b.dir].lastPressedAt - this.movementInput[a.dir].lastPressedAt);
+    return heldDirections[0];
   }
 
   snapVisualState() {
