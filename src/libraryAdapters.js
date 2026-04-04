@@ -105,7 +105,7 @@ async function mountPhina(container) {
     append: false,
   });
 
-  const scene = window.phina.game.DisplayScene({
+  const scene = window.phina.display.DisplayScene({
     width: 420,
     height: 220,
   });
