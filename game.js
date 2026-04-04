@@ -189,6 +189,11 @@ class MainScene extends Phaser.Scene {
 
     this.cursors = this.input.keyboard.createCursorKeys();
     this.keys = this.input.keyboard.addKeys("W,A,S,D,F,R,ENTER,SPACE");
+    this.input.keyboard.addCapture([
+      "W", "A", "S", "D",
+      "UP", "DOWN", "LEFT", "RIGHT",
+      "SPACE", "ENTER", "R", "F",
+    ]);
     this.movementInput = {
       left: { isDown: false, justPressed: false, lastPressedAt: 0 },
       right: { isDown: false, justPressed: false, lastPressedAt: 0 },
@@ -296,33 +301,53 @@ class MainScene extends Phaser.Scene {
     const keyToDirection = {
       ArrowLeft: "left",
       KeyA: "left",
+      a: "left",
+      A: "left",
       ArrowRight: "right",
       KeyD: "right",
+      d: "right",
+      D: "right",
       ArrowUp: "up",
       KeyW: "up",
+      w: "up",
+      W: "up",
       ArrowDown: "down",
       KeyS: "down",
+      s: "down",
+      S: "down",
     };
 
-    this.handleMovementKeyDown = (event) => {
-      const direction = keyToDirection[event.code];
-      if (!direction) return;
-
+    const setDirectionDown = (direction) => {
       const state = this.movementInput[direction];
       if (!state.isDown) {
         state.justPressed = true;
         state.lastPressedAt = performance.now();
       }
       state.isDown = true;
+    };
+
+    const setDirectionUp = (direction) => {
+      const state = this.movementInput[direction];
+      state.isDown = false;
+      state.justPressed = false;
+    };
+
+    const resolveDirection = (event) => {
+      const key = typeof event?.key === "string" ? event.key : "";
+      return keyToDirection[event?.code] ?? keyToDirection[key] ?? keyToDirection[key.toLowerCase()];
+    };
+
+    this.handleMovementKeyDown = (event) => {
+      const direction = resolveDirection(event);
+      if (!direction) return;
+      setDirectionDown(direction);
       event.preventDefault();
     };
 
     this.handleMovementKeyUp = (event) => {
-      const direction = keyToDirection[event.code];
+      const direction = resolveDirection(event);
       if (!direction) return;
-      const state = this.movementInput[direction];
-      state.isDown = false;
-      state.justPressed = false;
+      setDirectionUp(direction);
       event.preventDefault();
     };
 
@@ -336,6 +361,8 @@ class MainScene extends Phaser.Scene {
     window.addEventListener("keydown", this.handleMovementKeyDown, { passive: false });
     window.addEventListener("keyup", this.handleMovementKeyUp, { passive: false });
     window.addEventListener("blur", this.handleMovementBlur);
+    this.input.keyboard.on("keydown", this.handleMovementKeyDown);
+    this.input.keyboard.on("keyup", this.handleMovementKeyUp);
   }
 
   syncDomButtons() {
