@@ -168,7 +168,15 @@ async function mountPixi(container) {
   app.view.classList.add("library-demo-canvas");
 
   const bar = new window.PIXI.Graphics();
-  bar.roundRect(0, 0, 80, 24, 8).fill(0xd2b16f);
+  if (typeof bar.roundRect === "function" && typeof bar.fill === "function") {
+    // PixiJS v8 style API
+    bar.roundRect(0, 0, 80, 24, 8).fill(0xd2b16f);
+  } else {
+    // PixiJS v7 style API
+    bar.beginFill(0xd2b16f);
+    bar.drawRoundedRect(0, 0, 80, 24, 8);
+    bar.endFill();
+  }
   bar.x = 0;
   bar.y = 98;
   app.stage.addChild(bar);
