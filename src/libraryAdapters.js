@@ -100,8 +100,7 @@ async function mountPhina(container) {
   holder.id = appId;
   container.appendChild(holder);
 
-  const app = window.phina.game.GameApp({
-    startLabel: "main",
+  const app = window.phina.display.CanvasApp({
     width: 420,
     height: 220,
     fit: false,
