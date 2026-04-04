@@ -119,6 +119,26 @@ select {
   font-size: 0.82rem;
 }
 
+.build-version {
+  margin: 0 0 14px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.build-version span {
+  display: inline-flex;
+  align-items: center;
+  min-height: 28px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  border: 1px solid rgba(184, 154, 99, 0.22);
+  background: rgba(11, 19, 15, 0.74);
+  color: var(--muted);
+  font-size: 0.76rem;
+  letter-spacing: 0.04em;
+}
+
 h1 {
   margin: 0;
   font-size: clamp(2.2rem, 4vw, 3.5rem);
