@@ -189,16 +189,6 @@ class MainScene extends Phaser.Scene {
 
     this.cursors = this.input.keyboard.createCursorKeys();
     this.keys = this.input.keyboard.addKeys("W,A,S,D,F,R,ENTER,SPACE");
-    this.movementKeys = this.input.keyboard.addKeys({
-      left: Phaser.Input.Keyboard.KeyCodes.LEFT,
-      right: Phaser.Input.Keyboard.KeyCodes.RIGHT,
-      up: Phaser.Input.Keyboard.KeyCodes.UP,
-      down: Phaser.Input.Keyboard.KeyCodes.DOWN,
-      a: Phaser.Input.Keyboard.KeyCodes.A,
-      d: Phaser.Input.Keyboard.KeyCodes.D,
-      w: Phaser.Input.Keyboard.KeyCodes.W,
-      s: Phaser.Input.Keyboard.KeyCodes.S,
-    });
     this.input.keyboard.addCapture([
       "W", "A", "S", "D",
       "UP", "DOWN", "LEFT", "RIGHT",
@@ -232,15 +222,6 @@ class MainScene extends Phaser.Scene {
       wordWrap: { width: 760 },
     }).setDepth(1000).setScrollFactor(0);
 
-    this.debugText = this.add.text(8, 86, "", {
-      fontFamily: "monospace",
-      fontSize: "12px",
-      color: "#9cc7b2",
-      backgroundColor: "rgba(12, 20, 17, 0.88)",
-      padding: { x: 8, y: 6 },
-      wordWrap: { width: 760 },
-    }).setDepth(1000).setScrollFactor(0);
-
     this.mageMpText = this.add.text(0, 0, "", {
       fontFamily: "Georgia, serif",
       fontSize: "12px",
@@ -252,7 +233,6 @@ class MainScene extends Phaser.Scene {
     this.setupOverlayText();
     this.bindDomButtons();
     this.bindMovementInput();
-    this.bindMovementHotkeys();
     this.showTitleOverlay();
     this.syncDomButtons();
     this.warRoom = createWarRoom();
@@ -361,13 +341,6 @@ class MainScene extends Phaser.Scene {
       const direction = resolveDirection(event);
       if (!direction) return;
       setDirectionDown(direction);
-      if (this.phase === "playing") {
-        const now = performance.now();
-        if (now - this.lastMoveTime > 24) {
-          this.movementInput[direction].justPressed = false;
-          this.performMovementDirection(direction, now);
-        }
-      }
       event.preventDefault();
     };
 
@@ -385,38 +358,9 @@ class MainScene extends Phaser.Scene {
       }
     };
 
-    window.addEventListener("keydown", this.handleMovementKeyDown, { passive: false });
-    window.addEventListener("keyup", this.handleMovementKeyUp, { passive: false });
     document.addEventListener("keydown", this.handleMovementKeyDown, { passive: false });
     document.addEventListener("keyup", this.handleMovementKeyUp, { passive: false });
     window.addEventListener("blur", this.handleMovementBlur);
-    this.input.keyboard.on("keydown", this.handleMovementKeyDown);
-    this.input.keyboard.on("keyup", this.handleMovementKeyUp);
-  }
-
-  bindMovementHotkeys() {
-    const bindings = [
-      ["keydown-W", "up"],
-      ["keydown-A", "left"],
-      ["keydown-S", "down"],
-      ["keydown-D", "right"],
-      ["keydown-UP", "up"],
-      ["keydown-LEFT", "left"],
-      ["keydown-DOWN", "down"],
-      ["keydown-RIGHT", "right"],
-    ];
-
-    for (const [eventName, direction] of bindings) {
-      this.input.keyboard.on(eventName, () => {
-        const now = performance.now();
-        this.movementInput[direction].justPressed = false;
-        this.movementInput[direction].isDown = true;
-        this.movementInput[direction].lastPressedAt = now;
-        if (this.phase === "playing" && now - this.lastMoveTime > 24) {
-          this.performMovementDirection(direction, now);
-        }
-      });
-    }
 
     if (this.game?.canvas) {
       this.game.canvas.tabIndex = 1;
@@ -948,17 +892,7 @@ class MainScene extends Phaser.Scene {
       { dir: "down", dx: 0, dy: 1 },
     ].filter(({ dir }) => this.movementInput[dir].isDown);
 
-    if (heldDirections.length === 0) {
-      const fallbackHeldDirections = [
-        { dir: "left", primary: this.movementKeys.left, alt: this.movementKeys.a },
-        { dir: "right", primary: this.movementKeys.right, alt: this.movementKeys.d },
-        { dir: "up", primary: this.movementKeys.up, alt: this.movementKeys.w },
-        { dir: "down", primary: this.movementKeys.down, alt: this.movementKeys.s },
-      ].filter(({ primary, alt }) => primary.isDown || alt.isDown);
-
-      if (fallbackHeldDirections.length === 0) return null;
-      return fallbackHeldDirections[0];
-    }
+    if (heldDirections.length === 0) return null;
 
     heldDirections.sort((a, b) => this.movementInput[b.dir].lastPressedAt - this.movementInput[a.dir].lastPressedAt);
     return heldDirections[0];
@@ -973,7 +907,6 @@ class MainScene extends Phaser.Scene {
     }[direction];
 
     if (!movement || this.phase !== "playing") return;
-    this.lastMoveDebug = `input dir=${direction} phase=${this.phase} hero=(${this.hero?.x},${this.hero?.y})`;
     this.tryMoveHero(movement.dx, movement.dy);
     this.moveEnemies();
     this.updateVisualState(1 / 60);
@@ -1012,12 +945,10 @@ class MainScene extends Phaser.Scene {
   tryMoveHero(dx, dy) {
     const nx = this.hero.x + dx;
     const ny = this.hero.y + dy;
-    const tile = this.inBounds(nx, ny) ? this.getTile(nx, ny) : "out";
     const enemyIndex = this.inBounds(nx, ny) ? this.findEnemyAt(nx, ny) : -1;
 
     if (!this.inBounds(nx, ny)) {
       this.message = "これ以上は進めません。";
-      this.lastMoveDebug = `${this.lastMoveDebug}\nnext=(${nx},${ny}) inBounds=false`;
       return;
     }
 
@@ -1025,19 +956,16 @@ class MainScene extends Phaser.Scene {
       this.message = this.getTile(nx, ny) === this.TILES.WATER
         ? "川は渡れません。橋を探してください。"
         : "その地形には進めません。";
-      this.lastMoveDebug = `${this.lastMoveDebug}\nnext=(${nx},${ny}) tile=${tile} passable=false enemyIndex=${enemyIndex}`;
       return;
     }
 
     if (Number.isInteger(enemyIndex) && enemyIndex >= 0) {
-      this.lastMoveDebug = `${this.lastMoveDebug}\nnext=(${nx},${ny}) tile=${tile} enemyIndex=${enemyIndex} battle=true`;
       this.resolveBattle(enemyIndex, nx, ny);
       return;
     }
 
     this.hero.x = nx;
     this.hero.y = ny;
-    this.lastMoveDebug = `${this.lastMoveDebug}\nnext=(${nx},${ny}) tile=${tile} enemyIndex=${enemyIndex} moved=true hero=(${this.hero.x},${this.hero.y})`;
     this.pickupThings();
 
     const bossAlive = this.enemies.some(e => e.type === "finalBoss");
@@ -1790,7 +1718,6 @@ class MainScene extends Phaser.Scene {
     this.syncDomButtons();
     this.infoText.setText(`状態 ${phaseLabel}  STAGE ${this.stage}  SCORE ${this.score}  HP ${this.hero?.hp ?? 8}/${this.hero?.maxHp ?? 8}  兵 ${soldiers}  騎士 ${knights}  魔 ${Math.floor(this.mage?.mana ?? 0)}/${this.mage?.maxMana ?? 0}  僧 ${Math.floor(this.priest?.mana ?? 0)}/${this.priest?.maxMana ?? 0}  聖剣 ${this.hero?.hasExcalibur ? "有" : "無"}  自然回復 ${this.damageRegenDelay > 0 ? "待機中" : "有効"}`);
     this.messageText.setText(this.message);
-    this.debugText.setText(this.lastMoveDebug ?? "move debug: waiting for input");
     this.pushWarRoomState();
   }
 
