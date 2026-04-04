@@ -99,30 +99,11 @@ async function mountPhina(container) {
   holder.id = `phina-demo-${Date.now()}`;
   container.appendChild(holder);
 
-  const sceneClassName = `LibraryDemoScene${Date.now()}`;
-  window.phina.define(sceneClassName, {
-    superClass: "DisplayScene",
-    init: function init() {
-      this.superInit({ width: 420, height: 220 });
-
-      const circle = window.phina.display.CircleShape({ radius: 20, fill: "#d2b16f", stroke: "#eadfc4" }).addChildTo(this);
-      circle.setPosition(20, 110);
-      circle.tweener.clear().to({ x: 400 }, 900).to({ x: 20 }, 900).setLoop(true);
-    },
-  });
-
   const app = window.phina.game.GameApp({
-    startLabel: "main",
     width: 420,
     height: 220,
     fit: false,
-    append: false,
-    scenes: [
-      {
-        label: "main",
-        className: sceneClassName,
-      },
-    ],
+    domElement: holder,
   });
 
   const scene = window.phina.game.DisplayScene({
@@ -133,10 +114,13 @@ async function mountPhina(container) {
   circle.setPosition(20, 110);
   circle.tweener.clear().to({ x: 400 }, 900).to({ x: 20 }, 900).setLoop(true);
 
-  holder.appendChild(app.domElement);
+  app.replaceScene(scene);
   app.run();
 
-  return () => app.stop();
+  return () => {
+    app.stop();
+    holder.textContent = "";
+  };
 }
 
 
@@ -212,15 +196,28 @@ async function mountEnchant(container) {
   await loadScript(CDN.enchant);
   createTitle(container, "enchant.js: moving sprite demo");
 
+  if (typeof window.enchant !== "function") {
+    throw new Error("enchant.js の初期化関数が見つかりません");
+  }
+
   window.enchant();
   const holder = document.createElement("div");
   container.appendChild(holder);
 
-  const game = new window.Core(420, 220);
+  const CoreClass = window.Core || (window.enchant && window.enchant.Core);
+  if (!CoreClass) {
+    throw new Error("enchant.Core が見つかりません");
+  }
+
+  const game = new CoreClass(420, 220);
   game.fps = 30;
   game.onload = () => {
-    const square = new window.Sprite(28, 28);
-    const surface = new window.Surface(28, 28);
+    const SpriteClass = window.Sprite || (window.enchant && window.enchant.Sprite);
+    const SurfaceClass = window.Surface || (window.enchant && window.enchant.Surface);
+    if (!SpriteClass || !SurfaceClass) return;
+
+    const square = new SpriteClass(28, 28);
+    const surface = new SurfaceClass(28, 28);
     surface.context.fillStyle = "#d2b16f";
     surface.context.fillRect(0, 0, 28, 28);
     square.image = surface;
@@ -234,22 +231,29 @@ async function mountEnchant(container) {
   };
 
   game.start();
-  holder.appendChild(game._element);
+  if (game._element) holder.appendChild(game._element);
 
-  return () => game.stop();
+  return () => {
+    game.stop();
+    if (game._element?.remove) game._element.remove();
+  };
 }
 
 async function mountKiwi(container) {
   await loadScript(CDN.kiwi);
-  createTitle(container, "Kiwi.js: text demo");
+  createTitle(container, "Kiwi.js: text demo（Canvas fallback）");
 
   const holder = document.createElement("div");
-  holder.id = `kiwi-${Date.now()}`;
+  holder.id = `kiwi-${Date.now()}-${Math.floor(Math.random() * 10000)}`;
   container.appendChild(holder);
+
+  if (!window.Kiwi?.Game || !window.Kiwi?.State) {
+    throw new Error("Kiwi.js の初期化に失敗しました");
+  }
 
   const state = new window.Kiwi.State("DemoState");
   state.create = function create() {
-    const text = new window.Kiwi.GameObjects.Textfield(this, "Kiwi.js loaded", 140, 100, "22px serif", "#d2b16f", "left");
+    const text = new window.Kiwi.GameObjects.Textfield(this, "Kiwi.js loaded", 120, 100, "22px serif", "#d2b16f", "left");
     this.addChild(text);
   };
 
@@ -260,7 +264,26 @@ async function mountKiwi(container) {
     plugins: [],
   };
 
-  const game = new window.Kiwi.Game(holder, "KiwiDemo", state, gameOptions);
+  let game = null;
+  try {
+    game = new window.Kiwi.Game(holder, "KiwiDemo", null, gameOptions);
+    game.states.addState(state);
+    game.states.switchState("DemoState");
+  } catch (error) {
+    const fallback = createCanvas(holder);
+    const ctx = fallback.getContext("2d");
+    if (ctx) {
+      ctx.fillStyle = "#08100c";
+      ctx.fillRect(0, 0, fallback.width, fallback.height);
+      ctx.fillStyle = "#d2b16f";
+      ctx.font = "22px serif";
+      ctx.fillText("Kiwi.js init failed", 100, 100);
+      ctx.fillText("Fallback demo active", 100, 130);
+    }
+  }
 
-  return () => game.destroy();
+  return () => {
+    if (game?.destroy) game.destroy();
+    holder.textContent = "";
+  };
 }
