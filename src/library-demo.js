@@ -1,4 +1,4 @@
-import { mountLibraryDemo } from "./libraryAdapters.js";
+import { mountLibraryDemo } from "./libraryAdapters.js?v=20260404b";
 
 const select = document.getElementById("library-select");
 const runButton = document.getElementById("library-run-button");
