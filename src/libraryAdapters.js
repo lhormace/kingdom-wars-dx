@@ -95,10 +95,21 @@ async function mountPhina(container) {
   await loadScript(CDN.phina);
   createTitle(container, "phina.js: bouncing circle demo");
 
-  const appId = `phina-demo-${Date.now()}`;
   const holder = document.createElement("div");
-  holder.id = appId;
+  holder.id = `phina-demo-${Date.now()}`;
   container.appendChild(holder);
+
+  const sceneClassName = `LibraryDemoScene${Date.now()}`;
+  window.phina.define(sceneClassName, {
+    superClass: "DisplayScene",
+    init: function init() {
+      this.superInit({ width: 420, height: 220 });
+
+      const circle = window.phina.display.CircleShape({ radius: 20, fill: "#d2b16f", stroke: "#eadfc4" }).addChildTo(this);
+      circle.setPosition(20, 110);
+      circle.tweener.clear().to({ x: 400 }, 900).to({ x: 20 }, 900).setLoop(true);
+    },
+  });
 
   const app = window.phina.game.GameApp({
     startLabel: "main",
@@ -106,22 +117,20 @@ async function mountPhina(container) {
     height: 220,
     fit: false,
     append: false,
+    scenes: [
+      {
+        label: "main",
+        className: sceneClassName,
+      },
+    ],
   });
-
-  const scene = window.phina.display.DisplayScene({
-    width: 420,
-    height: 220,
-  });
-  const circle = window.phina.display.CircleShape({ radius: 20, fill: "#d2b16f", stroke: "#eadfc4" }).addChildTo(scene);
-  circle.setPosition(20, 110);
-  circle.tweener.clear().to({ x: 400 }, 900).to({ x: 20 }, 900).setLoop(true);
 
   holder.appendChild(app.domElement);
-  app.replaceScene(scene);
   app.run();
 
   return () => app.stop();
 }
+
 
 async function mountBabylon(container) {
   await loadScript(CDN.babylon);
