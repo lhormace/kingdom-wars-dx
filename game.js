@@ -141,6 +141,8 @@ class MainScene extends Phaser.Scene {
     this.tileSize = 24;
     this.mapW = 32;
     this.mapH = 24;
+    this.moveRepeatMs = 92;
+    this.visualLerpPerFrame = 0.22;
   }
 
   create() {
@@ -347,6 +349,7 @@ class MainScene extends Phaser.Scene {
 
     this.generateMap();
     this.spawnEntities();
+    this.snapVisualState();
     this.renderAll();
     this.hideOverlay();
     this.syncDomButtons();
@@ -368,6 +371,7 @@ class MainScene extends Phaser.Scene {
     ];
     this.prisoners = [{ x: 10, y: this.roadY + 1 }];
     this.excalibur = { x: 21, y: this.roadY + 1, picked: false };
+    this.snapVisualState();
     this.renderAll();
 
     this.overlayGraphics.clear();
@@ -716,6 +720,7 @@ class MainScene extends Phaser.Scene {
 
   update(_time, delta) {
     const dt = Math.min(0.05, (delta || 0) / 1000);
+    const now = this.time.now || 0;
     this.audio.update();
 
     if (Phaser.Input.Keyboard.JustDown(this.keys.ENTER) || Phaser.Input.Keyboard.JustDown(this.keys.SPACE)) {
@@ -748,35 +753,72 @@ class MainScene extends Phaser.Scene {
     this.updateMagicEffects();
     this.updateCompanionRecovery(dt);
 
-    if (this.phase !== "playing") return;
-
-    if (this.time.now - this.lastMoveTime > 140) {
-      let dx = 0;
-      let dy = 0;
-
-      if (this.cursors.left.isDown || this.keys.A.isDown) dx = -1;
-      else if (this.cursors.right.isDown || this.keys.D.isDown) dx = 1;
-      else if (this.cursors.up.isDown || this.keys.W.isDown) dy = -1;
-      else if (this.cursors.down.isDown || this.keys.S.isDown) dy = 1;
-
-      if (dx !== 0 || dy !== 0) {
-        this.tryMoveHero(dx, dy);
+    if (this.phase === "playing") {
+      const move = this.getMoveIntent(now);
+      if (move) {
+        this.tryMoveHero(move.dx, move.dy);
         this.moveEnemies();
-        this.renderAll();
         this.updateHud();
-        this.lastMoveTime = this.time.now;
+        this.lastMoveTime = now;
       }
     }
 
-    if (this.keys.F.isDown && this.time.now - this.lastMagicTime > 300) {
+    if (this.phase === "playing" && this.keys.F.isDown && now - this.lastMagicTime > 300) {
       this.castMagic();
-      this.renderAll();
       this.updateHud();
-      this.lastMagicTime = this.time.now || 0;
+      this.lastMagicTime = now;
     }
 
     this.tryPriestHeal();
     this.updateWorldEvents(dt);
+    this.updateVisualState(dt);
+    this.renderAll();
+  }
+
+  getMoveIntent(now) {
+    const justPressed = [
+      { key: this.cursors.left, alt: this.keys.A, dx: -1, dy: 0 },
+      { key: this.cursors.right, alt: this.keys.D, dx: 1, dy: 0 },
+      { key: this.cursors.up, alt: this.keys.W, dx: 0, dy: -1 },
+      { key: this.cursors.down, alt: this.keys.S, dx: 0, dy: 1 },
+    ].find(({ key, alt }) => Phaser.Input.Keyboard.JustDown(key) || Phaser.Input.Keyboard.JustDown(alt));
+
+    if (justPressed) return justPressed;
+    if (now - this.lastMoveTime < this.moveRepeatMs) return null;
+
+    return [
+      { key: this.cursors.left, alt: this.keys.A, dx: -1, dy: 0 },
+      { key: this.cursors.right, alt: this.keys.D, dx: 1, dy: 0 },
+      { key: this.cursors.up, alt: this.keys.W, dx: 0, dy: -1 },
+      { key: this.cursors.down, alt: this.keys.S, dx: 0, dy: 1 },
+    ].find(({ key, alt }) => key.isDown || alt.isDown) ?? null;
+  }
+
+  snapVisualState() {
+    if (this.hero) {
+      this.hero.displayX = this.hero.x;
+      this.hero.displayY = this.hero.y;
+    }
+    for (const enemy of this.enemies ?? []) {
+      enemy.displayX = enemy.x;
+      enemy.displayY = enemy.y;
+    }
+  }
+
+  updateVisualState(dt) {
+    const lerp = 1 - Math.pow(1 - this.visualLerpPerFrame, Math.max(1, dt * 60));
+    if (this.hero) {
+      if (typeof this.hero.displayX !== "number") this.hero.displayX = this.hero.x;
+      if (typeof this.hero.displayY !== "number") this.hero.displayY = this.hero.y;
+      this.hero.displayX = Phaser.Math.Linear(this.hero.displayX, this.hero.x, lerp);
+      this.hero.displayY = Phaser.Math.Linear(this.hero.displayY, this.hero.y, lerp);
+    }
+    for (const enemy of this.enemies ?? []) {
+      if (typeof enemy.displayX !== "number") enemy.displayX = enemy.x;
+      if (typeof enemy.displayY !== "number") enemy.displayY = enemy.y;
+      enemy.displayX = Phaser.Math.Linear(enemy.displayX, enemy.x, lerp);
+      enemy.displayY = Phaser.Math.Linear(enemy.displayY, enemy.y, lerp);
+    }
   }
 
   tryMoveHero(dx, dy) {
@@ -1436,17 +1478,19 @@ class MainScene extends Phaser.Scene {
     for (const p of this.prisoners) this.drawCharacter(p.x, p.y, "prisoner");
 
     for (const e of this.enemies) {
-      if (e.type === "miniboss") this.drawCharacter(e.x, e.y, "miniboss", 2);
-      else if (e.type === "finalBoss") this.drawCharacter(e.x, e.y, "finalBoss", 4);
-      else if (e.type === "scout") this.drawCharacter(e.x, e.y, "scout");
-      else if (e.type === "soldier") this.drawCharacter(e.x, e.y, "enemySoldier");
-      else if (e.type === "knight") this.drawCharacter(e.x, e.y, "enemyKnight");
+      const drawX = typeof e.displayX === "number" ? e.displayX : e.x;
+      const drawY = typeof e.displayY === "number" ? e.displayY : e.y;
+      if (e.type === "miniboss") this.drawCharacter(drawX, drawY, "miniboss", 2);
+      else if (e.type === "finalBoss") this.drawCharacter(drawX, drawY, "finalBoss", 4);
+      else if (e.type === "scout") this.drawCharacter(drawX, drawY, "scout");
+      else if (e.type === "soldier") this.drawCharacter(drawX, drawY, "enemySoldier");
+      else if (e.type === "knight") this.drawCharacter(drawX, drawY, "enemyKnight");
 
       if (["miniboss", "finalBoss"].includes(e.type)) {
         const size = this.getEnemySize(e);
         this.drawBar(
-          e.x * this.tileSize + 2,
-          e.y * this.tileSize - 5,
+          drawX * this.tileSize + 2,
+          drawY * this.tileSize - 5,
           this.tileSize * size - 4,
           4,
           e.hp,
@@ -1456,10 +1500,12 @@ class MainScene extends Phaser.Scene {
       }
     }
 
-    const priestX = Math.max(1, this.hero.x - this.formation.length - 2);
-    const mageX = Math.max(1, this.hero.x - this.formation.length - 1);
-    this.drawCharacter(priestX, this.hero.y, "priest");
-    this.drawCharacter(mageX, this.hero.y, "mage");
+    const heroDrawX = typeof this.hero.displayX === "number" ? this.hero.displayX : this.hero.x;
+    const heroDrawY = typeof this.hero.displayY === "number" ? this.hero.displayY : this.hero.y;
+    const priestX = Math.max(1, heroDrawX - this.formation.length - 2);
+    const mageX = Math.max(1, heroDrawX - this.formation.length - 1);
+    this.drawCharacter(priestX, heroDrawY, "priest");
+    this.drawCharacter(mageX, heroDrawY, "mage");
 
     const beforeEffects = this.worldEffects.length;
     this.worldEffects = this.worldEffects.filter(effect => effect.expiresAt > this.time.now);
@@ -1521,17 +1567,17 @@ class MainScene extends Phaser.Scene {
       this.unitGraphics.fillCircle((sx + tx) / 2, (sy + ty) / 2, 3 + age * 3);
     }
 
-    let fx = this.hero.x;
+    let fx = heroDrawX;
     for (let i = 0; i < this.formation.length; i++) {
       fx--;
-      if (!this.inBounds(fx, this.hero.y)) break;
-      this.drawCharacter(fx, this.hero.y, this.formation[i].type === "knight" ? "knight" : "soldier");
+      if (!this.inBounds(Math.round(fx), Math.round(heroDrawY))) break;
+      this.drawCharacter(fx, heroDrawY, this.formation[i].type === "knight" ? "knight" : "soldier");
     }
 
-    this.drawCharacter(this.hero.x, this.hero.y, "hero", 1, { hasExcalibur: this.hero.hasExcalibur });
-    this.drawBar(this.hero.x * this.tileSize + 2, this.hero.y * this.tileSize - 5, this.tileSize - 4, 4, this.hero.hp, this.hero.maxHp, 0x81c784);
+    this.drawCharacter(heroDrawX, heroDrawY, "hero", 1, { hasExcalibur: this.hero.hasExcalibur });
+    this.drawBar(heroDrawX * this.tileSize + 2, heroDrawY * this.tileSize - 5, this.tileSize - 4, 4, this.hero.hp, this.hero.maxHp, 0x81c784);
 
-    this.mageMpText.setPosition(mageX * this.tileSize - 4, this.hero.y * this.tileSize - 18);
+    this.mageMpText.setPosition(mageX * this.tileSize - 4, heroDrawY * this.tileSize - 18);
     this.mageMpText.setText(`大魔法使い MP ${Math.floor(this.mage?.mana ?? 0)}/${this.mage?.maxMana ?? 0}`);
   }
 
