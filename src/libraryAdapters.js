@@ -125,6 +125,14 @@ async function mountPhina(container) {
     ],
   });
 
+  const scene = window.phina.game.DisplayScene({
+    width: 420,
+    height: 220,
+  });
+  const circle = window.phina.display.CircleShape({ radius: 20, fill: "#d2b16f", stroke: "#eadfc4" }).addChildTo(scene);
+  circle.setPosition(20, 110);
+  circle.tweener.clear().to({ x: 400 }, 900).to({ x: 20 }, 900).setLoop(true);
+
   holder.appendChild(app.domElement);
   app.run();
 
