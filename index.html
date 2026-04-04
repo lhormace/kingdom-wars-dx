@@ -11,7 +11,7 @@
     <section class="hero-panel">
       <div>
         <p class="eyebrow">Celtic Mythic Tactical Action</p>
-        <p id="build-version" class="build-version" aria-label="ビルドバージョン">2026-04-04 14:14:45 | 1.0.51.8c69c70</p>
+        <p id="build-version" class="build-version" aria-label="ビルドバージョン">version loading...</p>
         <h1>Kingdom Wars DX</h1>
         <p class="lead">ケルトの意匠を思わせる深緑と金の戦場で、王国軍を率いて敵城へ進軍するレトロ風ライン戦術アクションです。王・兵士・騎士・魔法使い・僧侶の隊列を守りながら、捕虜救出と聖剣回収を経てラスボスを倒してください。</p>
         <p class="hero-ornament" aria-hidden="true">☘ 永き石輪と森の加護をまとい、古き王国の道を進め ☘</p>
@@ -83,30 +83,52 @@
   </main>
 
   <script>
-    (() => {
-      const APP_VERSION = "2026-04-04 14:14:45 | 1.0.51.8c69c70";
-
+    (async () => {
       const versionNode = document.getElementById("build-version");
-      if (versionNode) versionNode.textContent = APP_VERSION;
+      const showBootError = (message) => {
+        if (versionNode) versionNode.textContent = message;
+      };
+
+      const loadVersion = async () => {
+        const response = await fetch(`./version.txt?ts=${Date.now()}`, {
+          cache: "no-store",
+        });
+        if (!response.ok) {
+          throw new Error(`Failed to load version.txt (${response.status})`);
+        }
+        return response.text();
+      };
+
+      let appVersion = "";
+
+      try {
+        appVersion = (await loadVersion()).trim();
+      } catch (error) {
+        console.error("Failed to load application version.", error);
+        showBootError("version load failed");
+        return;
+      }
+
+      if (versionNode) versionNode.textContent = appVersion;
 
       const url = new URL(window.location.href);
       const currentVersion = url.searchParams.get("v");
 
-      if (currentVersion !== APP_VERSION) {
-        url.searchParams.set("v", APP_VERSION);
+      if (currentVersion !== appVersion) {
+        url.searchParams.set("v", appVersion);
         window.location.replace(url.toString());
         return;
       }
 
       const style = document.getElementById("app-style");
       if (style) {
-        style.href = `./style.css?v=${encodeURIComponent(APP_VERSION)}`;
+        style.href = `./style.css?v=${encodeURIComponent(appVersion)}`;
       }
 
       const loadScript = (src, type = "") =>
         new Promise((resolve, reject) => {
           const script = document.createElement("script");
-          script.src = `${src}?v=${encodeURIComponent(APP_VERSION)}`;
+          script.src = `${src}?v=${encodeURIComponent(appVersion)}`;
           if (type) script.type = type;
           script.onload = resolve;
           script.onerror = reject;
@@ -118,6 +140,7 @@
         .then(() => loadScript("./src/library-demo.js", "module"))
         .catch((error) => {
           console.error("Failed to boot application scripts.", error);
+          showBootError("boot failed");
         });
     })();
   </script>
