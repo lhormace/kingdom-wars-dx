@@ -249,7 +249,7 @@ async function mountEnchant(container) {
 
 async function mountKiwi(container) {
   await loadScript(CDN.kiwi);
-  createTitle(container, "Kiwi.js: text demo");
+  createTitle(container, "Kiwi.js: moving text demo");
 
   const holder = document.createElement("div");
   holder.id = `kiwi-${Date.now()}-${Math.floor(Math.random() * 10000)}`;
@@ -267,9 +267,43 @@ async function mountKiwi(container) {
   }
 
   const state = new window.Kiwi.State("DemoState");
+  let label = null;
+  let caption = null;
+  let tick = 0;
+
   state.create = function create() {
-    const text = new window.Kiwi.GameObjects.TextField(this, "Kiwi.js loaded", 120, 100, "#d2b16f", 22, "normal", "serif");
-    this.addChild(text);
+    label = new window.Kiwi.GameObjects.TextField(
+      this,
+      "Kiwi.js loaded",
+      24,
+      108,
+      "#d2b16f",
+      22,
+      "normal",
+      "serif",
+    );
+    caption = new window.Kiwi.GameObjects.TextField(
+      this,
+      "moving text demo",
+      130,
+      42,
+      "#8fbf7a",
+      16,
+      "normal",
+      "sans-serif",
+    );
+    this.addChild(caption);
+    this.addChild(label);
+  };
+
+  state.update = function update() {
+    window.Kiwi.State.prototype.update.call(this);
+    if (!label || !caption) return;
+
+    tick += 0.06;
+    label.x = 110 + Math.sin(tick) * 72;
+    label.y = 108 + Math.cos(tick * 1.8) * 24;
+    caption.alpha = 0.65 + (Math.sin(tick * 2.4) + 1) * 0.175;
   };
 
   const gameOptions = {
