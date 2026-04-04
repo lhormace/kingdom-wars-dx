@@ -965,6 +965,8 @@ class MainScene extends Phaser.Scene {
     if (!movement || this.phase !== "playing") return;
     this.tryMoveHero(movement.dx, movement.dy);
     this.moveEnemies();
+    this.updateVisualState(1 / 60);
+    this.renderAll();
     this.updateHud();
     this.lastMoveTime = now;
   }
