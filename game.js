@@ -341,6 +341,13 @@ class MainScene extends Phaser.Scene {
       const direction = resolveDirection(event);
       if (!direction) return;
       setDirectionDown(direction);
+      if (this.phase === "playing") {
+        const now = performance.now();
+        if (now - this.lastMoveTime > 24) {
+          this.movementInput[direction].justPressed = false;
+          this.performMovementDirection(direction, now);
+        }
+      }
       event.preventDefault();
     };
 
@@ -800,7 +807,7 @@ class MainScene extends Phaser.Scene {
 
   update(_time, delta) {
     const dt = Math.min(0.05, (delta || 0) / 1000);
-    const now = this.time.now || 0;
+    const now = performance.now();
     this.audio.update();
 
     if (Phaser.Input.Keyboard.JustDown(this.keys.ENTER) || Phaser.Input.Keyboard.JustDown(this.keys.SPACE)) {
@@ -836,10 +843,7 @@ class MainScene extends Phaser.Scene {
     if (this.phase === "playing") {
       const move = this.getMoveIntent(now);
       if (move) {
-        this.tryMoveHero(move.dx, move.dy);
-        this.moveEnemies();
-        this.updateHud();
-        this.lastMoveTime = now;
+        this.performMovementDirection(move.dir, now);
       }
     }
 
@@ -880,6 +884,21 @@ class MainScene extends Phaser.Scene {
 
     heldDirections.sort((a, b) => this.movementInput[b.dir].lastPressedAt - this.movementInput[a.dir].lastPressedAt);
     return heldDirections[0];
+  }
+
+  performMovementDirection(direction, now = performance.now()) {
+    const movement = {
+      left: { dx: -1, dy: 0 },
+      right: { dx: 1, dy: 0 },
+      up: { dx: 0, dy: -1 },
+      down: { dx: 0, dy: 1 },
+    }[direction];
+
+    if (!movement || this.phase !== "playing") return;
+    this.tryMoveHero(movement.dx, movement.dy);
+    this.moveEnemies();
+    this.updateHud();
+    this.lastMoveTime = now;
   }
 
   snapVisualState() {
