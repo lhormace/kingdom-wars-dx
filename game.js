@@ -823,7 +823,8 @@ class MainScene extends Phaser.Scene {
   }
 
   findEnemyAt(x, y) {
-    return this.enemies.findIndex(enemy => this.enemyOccupies(enemy, x, y));
+    const index = this.enemies.findIndex(enemy => this.enemyOccupies(enemy, x, y));
+    return Number.isInteger(index) ? index : -1;
   }
 
   canPlaceRect(x, y, width, height, allowCastle = false, ignoreEnemy = null) {
@@ -1028,7 +1029,7 @@ class MainScene extends Phaser.Scene {
       return;
     }
 
-    if (enemyIndex >= 0) {
+    if (Number.isInteger(enemyIndex) && enemyIndex >= 0) {
       this.lastMoveDebug = `${this.lastMoveDebug}\nnext=(${nx},${ny}) tile=${tile} enemyIndex=${enemyIndex} battle=true`;
       this.resolveBattle(enemyIndex, nx, ny);
       return;
