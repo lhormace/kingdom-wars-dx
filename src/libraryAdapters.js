@@ -3,7 +3,7 @@ const CDN = {
   phina: "https://cdn.jsdelivr.net/npm/phina.js@0.2.3/build/phina.min.js",
   babylon: "https://cdn.babylonjs.com/babylon.js",
   pixi: "https://cdn.jsdelivr.net/npm/pixi.js@7.4.2/dist/pixi.min.js",
-  enchant: "https://cdn.jsdelivr.net/npm/enchant.js@0.8.3/build/enchant.js",
+  enchant: "./vendor/enchant.js?v=20260404a",
   kiwi: "https://cdn.jsdelivr.net/npm/kiwi.js@1.4.0/dist/kiwi.min.js",
 };
 
