@@ -380,6 +380,10 @@ class MainScene extends Phaser.Scene {
     this.game?.canvas?.focus?.();
   }
 
+  tileKey(x, y) {
+    return `${Math.trunc(x)},${Math.trunc(y)}`;
+  }
+
   syncDomButtons() {
     if (this.startButton) {
       const labels = {
@@ -439,7 +443,9 @@ class MainScene extends Phaser.Scene {
 
     this.enemies = [];
     this.prisoners = [];
+    this.prisonerTiles = new Set();
     this.excalibur = null;
+    this.excaliburTileKey = null;
     this.lastMoveTime = 0;
     this.lastMagicTime = 0;
     this.magicEffects = [];
@@ -468,7 +474,9 @@ class MainScene extends Phaser.Scene {
       { type: "finalBoss", x: 25, y: this.roadY - 1, hp: 10, maxHp: 10, power: 10, color: 0xffd54f },
     ];
     this.prisoners = [{ x: 10, y: this.roadY + 1 }];
+    this.prisonerTiles = new Set(this.prisoners.map((p) => this.tileKey(p.x, p.y)));
     this.excalibur = { x: 21, y: this.roadY + 1, picked: false };
+    this.excaliburTileKey = this.tileKey(this.excalibur.x, this.excalibur.y);
     this.snapVisualState();
     this.renderAll();
 
@@ -746,11 +754,17 @@ class MainScene extends Phaser.Scene {
 
     for (let i = 0; i < 10 + Math.floor(this.stage / 2); i++) {
       const p = this.findFreeTile(5, this.mapW - 8);
-      if (p) this.prisoners.push({ x: p.x, y: p.y });
+      if (p) {
+        this.prisoners.push({ x: p.x, y: p.y });
+        this.prisonerTiles.add(this.tileKey(p.x, p.y));
+      }
     }
 
     const sword = this.findFreeTile(Math.floor(this.mapW * 0.45), Math.floor(this.mapW * 0.72));
-    if (sword) this.excalibur = { x: sword.x, y: sword.y, picked: false };
+    if (sword) {
+      this.excalibur = { x: sword.x, y: sword.y, picked: false };
+      this.excaliburTileKey = this.tileKey(sword.x, sword.y);
+    }
   }
 
   inBounds(x, y) {
@@ -1048,9 +1062,12 @@ class MainScene extends Phaser.Scene {
   }
 
   pickupThings() {
-    const pIndex = this.prisoners.findIndex(p => p.x === this.hero.x && p.y === this.hero.y);
-    if (pIndex >= 0) {
+    const heroTileKey = this.tileKey(this.hero.x, this.hero.y);
+    if (this.prisonerTiles?.has(heroTileKey)) {
+      const pIndex = this.prisoners.findIndex((p) => this.tileKey(p.x, p.y) === heroTileKey);
+      if (pIndex < 0) return;
       this.prisoners.splice(pIndex, 1);
+      this.prisonerTiles.delete(heroTileKey);
       const nextCount = this.formation.length + 1;
       this.formation.push(nextCount % 3 === 0 ? { type: "knight" } : { type: "soldier" });
       this.score += 20;
@@ -1058,8 +1075,9 @@ class MainScene extends Phaser.Scene {
       this.message = nextCount % 3 === 0 ? "捕虜を救出。騎士が加入。" : "捕虜を救出。兵が加入。";
     }
 
-    if (this.excalibur && !this.excalibur.picked && this.excalibur.x === this.hero.x && this.excalibur.y === this.hero.y) {
+    if (this.excalibur && !this.excalibur.picked && this.excaliburTileKey === heroTileKey) {
       this.excalibur.picked = true;
+      this.excaliburTileKey = null;
       this.hero.hasExcalibur = true;
       this.score += 150;
       this.audio?.playSfx("pickup");
