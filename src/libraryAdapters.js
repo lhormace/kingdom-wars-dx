@@ -98,12 +98,13 @@ async function mountPhina(container) {
   const holder = document.createElement("div");
   holder.id = `phina-demo-${Date.now()}`;
   container.appendChild(holder);
+  const canvas = createCanvas(holder);
 
   const app = window.phina.game.GameApp({
     width: 420,
     height: 220,
     fit: false,
-    domElement: holder,
+    domElement: canvas,
   });
 
   const scene = window.phina.game.DisplayScene({
