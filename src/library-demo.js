@@ -1,4 +1,8 @@
-import { mountLibraryDemo } from "./libraryAdapters.js?v=20260404c";
+const versionToken = new URLSearchParams(window.location.search).get("v");
+const adapterUrl = versionToken
+  ? `./libraryAdapters.js?v=${encodeURIComponent(versionToken)}`
+  : "./libraryAdapters.js";
+const { mountLibraryDemo } = await import(adapterUrl);
 
 const select = document.getElementById("library-select");
 const runButton = document.getElementById("library-run-button");

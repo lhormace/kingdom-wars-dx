@@ -1,30 +1,38 @@
 const CDN = {
-  phaser: "./vendor/phaser.js?v=20260404c",
-  phina: "./vendor/phina.min.js?v=20260404c",
-  babylon: "./vendor/babylon.js?v=20260404c",
-  pixi: "./vendor/pixi.min.js?v=20260404c",
-  enchant: "./vendor/enchant.js?v=20260404a",
-  kiwi: "./vendor/kiwi.min.js?v=20260404c",
+  phaser: "./vendor/phaser.js",
+  phina: "./vendor/phina.min.js",
+  babylon: "./vendor/babylon.js",
+  pixi: "./vendor/pixi.min.js",
+  enchant: "./vendor/enchant.js",
+  kiwi: "./vendor/kiwi.min.js",
 };
 
 const scriptCache = new Map();
+const versionToken = new URLSearchParams(window.location.search).get("v");
+
+function withVersionParam(src) {
+  if (!versionToken) return src;
+  const separator = src.includes("?") ? "&" : "?";
+  return `${src}${separator}v=${encodeURIComponent(versionToken)}`;
+}
 
 function loadScript(src) {
-  if (scriptCache.has(src)) return scriptCache.get(src);
+  const resolvedSrc = withVersionParam(src);
+  if (scriptCache.has(resolvedSrc)) return scriptCache.get(resolvedSrc);
 
   const promise = new Promise((resolve, reject) => {
     const script = document.createElement("script");
-    script.src = src;
+    script.src = resolvedSrc;
     script.async = true;
     script.onload = resolve;
     script.onerror = () => {
-      scriptCache.delete(src);
-      reject(new Error(`Failed to load ${src}`));
+      scriptCache.delete(resolvedSrc);
+      reject(new Error(`Failed to load ${resolvedSrc}`));
     };
     document.head.appendChild(script);
   });
 
-  scriptCache.set(src, promise);
+  scriptCache.set(resolvedSrc, promise);
   return promise;
 }
 
