@@ -189,6 +189,16 @@ class MainScene extends Phaser.Scene {
 
     this.cursors = this.input.keyboard.createCursorKeys();
     this.keys = this.input.keyboard.addKeys("W,A,S,D,F,R,ENTER,SPACE");
+    this.movementKeys = this.input.keyboard.addKeys({
+      left: Phaser.Input.Keyboard.KeyCodes.LEFT,
+      right: Phaser.Input.Keyboard.KeyCodes.RIGHT,
+      up: Phaser.Input.Keyboard.KeyCodes.UP,
+      down: Phaser.Input.Keyboard.KeyCodes.DOWN,
+      a: Phaser.Input.Keyboard.KeyCodes.A,
+      d: Phaser.Input.Keyboard.KeyCodes.D,
+      w: Phaser.Input.Keyboard.KeyCodes.W,
+      s: Phaser.Input.Keyboard.KeyCodes.S,
+    });
     this.input.keyboard.addCapture([
       "W", "A", "S", "D",
       "UP", "DOWN", "LEFT", "RIGHT",
@@ -233,6 +243,7 @@ class MainScene extends Phaser.Scene {
     this.setupOverlayText();
     this.bindDomButtons();
     this.bindMovementInput();
+    this.bindMovementHotkeys();
     this.showTitleOverlay();
     this.syncDomButtons();
     this.warRoom = createWarRoom();
@@ -370,6 +381,40 @@ class MainScene extends Phaser.Scene {
     window.addEventListener("blur", this.handleMovementBlur);
     this.input.keyboard.on("keydown", this.handleMovementKeyDown);
     this.input.keyboard.on("keyup", this.handleMovementKeyUp);
+  }
+
+  bindMovementHotkeys() {
+    const bindings = [
+      ["keydown-W", "up"],
+      ["keydown-A", "left"],
+      ["keydown-S", "down"],
+      ["keydown-D", "right"],
+      ["keydown-UP", "up"],
+      ["keydown-LEFT", "left"],
+      ["keydown-DOWN", "down"],
+      ["keydown-RIGHT", "right"],
+    ];
+
+    for (const [eventName, direction] of bindings) {
+      this.input.keyboard.on(eventName, () => {
+        const now = performance.now();
+        this.movementInput[direction].justPressed = false;
+        this.movementInput[direction].isDown = true;
+        this.movementInput[direction].lastPressedAt = now;
+        if (this.phase === "playing" && now - this.lastMoveTime > 24) {
+          this.performMovementDirection(direction, now);
+        }
+      });
+    }
+
+    if (this.game?.canvas) {
+      this.game.canvas.tabIndex = 1;
+      this.game.canvas.setAttribute("aria-label", "Kingdom Wars DX game canvas");
+    }
+
+    this.input.on("pointerdown", () => {
+      this.game?.canvas?.focus?.();
+    });
   }
 
   syncDomButtons() {
@@ -880,7 +925,17 @@ class MainScene extends Phaser.Scene {
       { dir: "down", dx: 0, dy: 1 },
     ].filter(({ dir }) => this.movementInput[dir].isDown);
 
-    if (heldDirections.length === 0) return null;
+    if (heldDirections.length === 0) {
+      const fallbackHeldDirections = [
+        { dir: "left", primary: this.movementKeys.left, alt: this.movementKeys.a },
+        { dir: "right", primary: this.movementKeys.right, alt: this.movementKeys.d },
+        { dir: "up", primary: this.movementKeys.up, alt: this.movementKeys.w },
+        { dir: "down", primary: this.movementKeys.down, alt: this.movementKeys.s },
+      ].filter(({ primary, alt }) => primary.isDown || alt.isDown);
+
+      if (fallbackHeldDirections.length === 0) return null;
+      return fallbackHeldDirections[0];
+    }
 
     heldDirections.sort((a, b) => this.movementInput[b.dir].lastPressedAt - this.movementInput[a.dir].lastPressedAt);
     return heldDirections[0];
