@@ -4,7 +4,7 @@ const CDN = {
   babylon: "https://cdn.jsdelivr.net/npm/babylonjs@7.41.2/babylon.js",
   pixi: "https://cdn.jsdelivr.net/npm/pixi.js@8/dist/pixi.min.js",
   enchant: "https://cdn.jsdelivr.net/npm/enchant.js@0.8.3/build/enchant.min.js",
-  kiwi: "https://cdn.jsdelivr.net/npm/kiwi.js@1.4.0/dist/kiwi.min.js",
+  kiwi: "https://cdnjs.cloudflare.com/ajax/libs/kiwi/1.4.0/kiwi.min.js",
 };
 
 const scriptCache = new Map();
