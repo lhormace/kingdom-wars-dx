@@ -1,3 +1,5 @@
+import { createWarRoom } from "./src/gameEnhancements.js";
+
 function rand(min, max) {
   return Math.floor(Math.random() * (max - min + 1)) + min;
 }
@@ -219,6 +221,10 @@ class MainScene extends Phaser.Scene {
     this.bindDomButtons();
     this.showTitleOverlay();
     this.syncDomButtons();
+    this.warRoom = createWarRoom();
+    this.warRoom.mount().then(() => this.pushWarRoomState()).catch((error) => {
+      console.error("Failed to mount war room.", error);
+    });
     this.updateHud();
   }
 
@@ -1545,6 +1551,32 @@ class MainScene extends Phaser.Scene {
     this.syncDomButtons();
     this.infoText.setText(`状態 ${phaseLabel}  STAGE ${this.stage}  SCORE ${this.score}  HP ${this.hero?.hp ?? 8}/${this.hero?.maxHp ?? 8}  兵 ${soldiers}  騎士 ${knights}  魔 ${Math.floor(this.mage?.mana ?? 0)}/${this.mage?.maxMana ?? 0}  僧 ${Math.floor(this.priest?.mana ?? 0)}/${this.priest?.maxMana ?? 0}  聖剣 ${this.hero?.hasExcalibur ? "有" : "無"}  自然回復 ${this.damageRegenDelay > 0 ? "待機中" : "有効"}`);
     this.messageText.setText(this.message);
+    this.pushWarRoomState();
+  }
+
+  createWarRoomSnapshot() {
+    return {
+      phase: this.phase,
+      stage: this.stage,
+      score: this.score,
+      kills: this.kills,
+      enemyCount: this.enemies?.length ?? 0,
+      prisonerCount: this.prisoners?.length ?? 0,
+      soldierCount: this.formation?.filter((u) => u.type === "soldier").length ?? 0,
+      knightCount: this.formation?.filter((u) => u.type === "knight").length ?? 0,
+      heroHp: this.hero?.hp ?? 8,
+      heroMaxHp: this.hero?.maxHp ?? 8,
+      mageMana: Math.floor(this.mage?.mana ?? 0),
+      mageMaxMana: this.mage?.maxMana ?? 0,
+      priestMana: Math.floor(this.priest?.mana ?? 0),
+      priestMaxMana: this.priest?.maxMana ?? 0,
+      hasExcalibur: Boolean(this.hero?.hasExcalibur),
+      message: this.message ?? "",
+    };
+  }
+
+  pushWarRoomState() {
+    this.warRoom?.update(this.createWarRoomSnapshot());
   }
 }
 

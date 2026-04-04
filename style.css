@@ -301,6 +301,44 @@ button:hover {
   line-height: 1.7;
 }
 
+.war-room-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.war-widget {
+  padding: 12px;
+  border-radius: 18px;
+  border: 1px solid rgba(210, 177, 111, 0.22);
+  background: linear-gradient(180deg, rgba(8, 16, 12, 0.98), rgba(5, 12, 9, 0.94));
+  min-height: 160px;
+}
+
+.war-widget-wide {
+  grid-column: 1 / -1;
+}
+
+.war-widget h3 {
+  margin: 0 0 10px;
+  color: var(--accent);
+  font-size: 1rem;
+}
+
+.war-widget-stage {
+  min-height: 108px;
+  border-radius: 14px;
+  overflow: hidden;
+  background: linear-gradient(180deg, rgba(6, 13, 10, 0.98), rgba(4, 9, 7, 0.94));
+  border: 1px solid rgba(210, 177, 111, 0.14);
+}
+
+.war-widget-stage canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
 .legend-list li {
   display: flex;
   align-items: center;
@@ -488,6 +526,10 @@ button:hover {
 
   .controls-list div {
     grid-template-columns: 64px 1fr;
+  }
+
+  .war-room-grid {
+    grid-template-columns: 1fr;
   }
 }
 
