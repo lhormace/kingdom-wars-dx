@@ -477,3 +477,51 @@ button:hover {
     grid-template-columns: 64px 1fr;
   }
 }
+
+.library-switcher {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 10px;
+  margin-top: 8px;
+}
+
+.library-switcher select {
+  width: 100%;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid rgba(214, 183, 118, 0.45);
+  background: rgba(8, 15, 12, 0.95);
+  color: var(--text);
+}
+
+#library-run-button {
+  min-width: auto;
+  width: 100%;
+}
+
+.library-demo-status {
+  margin: 10px 0;
+  font-size: 0.92rem;
+  color: var(--muted);
+}
+
+.library-demo-container {
+  min-height: 260px;
+  border-radius: 14px;
+  border: 1px solid rgba(214, 183, 118, 0.24);
+  padding: 8px;
+  background: linear-gradient(180deg, rgba(6, 11, 9, 0.9), rgba(11, 19, 15, 0.95));
+}
+
+.library-demo-title {
+  margin: 2px 0 8px;
+  font-size: 0.86rem;
+  color: var(--accent);
+}
+
+.library-demo-canvas {
+  width: 100%;
+  max-width: 100%;
+  border-radius: 10px;
+  border: 1px solid rgba(214, 183, 118, 0.15);
+}

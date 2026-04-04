@@ -59,11 +59,30 @@
             <li><span class="legend-swatch sword"></span><span>エクスカリバー：取得時に強い発光エフェクトが発生</span></li>
           </ul>
         </section>
+
+        <section class="panel-block">
+          <h2>ライブラリ実装デモ</h2>
+          <p class="legend-note">以下の 6 種類のゲーム用ライブラリの最小デモを切り替えて確認できます。</p>
+          <div class="library-switcher">
+            <select id="library-select" aria-label="ライブラリ選択">
+              <option value="phaser">Phaser.js</option>
+              <option value="phina">phina.js</option>
+              <option value="babylon">Babylon.js</option>
+              <option value="pixi">PixiJS</option>
+              <option value="enchant">enchant.js</option>
+              <option value="kiwi">Kiwi.js</option>
+            </select>
+            <button id="library-run-button" type="button">デモ再読み込み</button>
+          </div>
+          <p id="library-demo-status" class="library-demo-status">未実行</p>
+          <div id="library-demo-container" class="library-demo-container" aria-live="polite"></div>
+        </section>
       </aside>
     </section>
   </main>
 
   <script src="https://cdn.jsdelivr.net/npm/phaser@3/dist/phaser.js"></script>
   <script type="module" src="./game.js"></script>
+  <script type="module" src="./src/library-demo.js"></script>
 </body>
 </html>
