@@ -167,16 +167,39 @@ async function mountPixi(container) {
   await loadScript(CDN.pixi);
   createTitle(container, "PixiJS: moving bar demo");
 
-  const app = new window.PIXI.Application({
-    width: 420,
-    height: 220,
-    backgroundColor: 0x08100c,
-    antialias: true,
-  });
-  container.appendChild(app.view);
-  app.view.classList.add("library-demo-canvas");
+  const pixi =
+    window.PIXI ??
+    globalThis.PIXI ??
+    (typeof PIXI !== "undefined" ? PIXI : null);
 
-  const bar = new window.PIXI.Graphics();
+  if (!pixi?.Application || !pixi?.Graphics) {
+    throw new Error("PixiJS の初期化に失敗しました");
+  }
+
+  const app = new pixi.Application();
+  if (typeof app.init === "function") {
+    await app.init({
+      width: 420,
+      height: 220,
+      backgroundColor: 0x08100c,
+      antialias: true,
+    });
+  }
+
+  const view = app.canvas ?? app.view;
+  if (!view) {
+    throw new Error("PixiJS view が作成されませんでした");
+  }
+
+  if (typeof app.init !== "function") {
+    app.renderer.resize(420, 220);
+    app.renderer.background.color = 0x08100c;
+  }
+
+  container.appendChild(view);
+  view.classList.add("library-demo-canvas");
+
+  const bar = new pixi.Graphics();
   if (typeof bar.roundRect === "function" && typeof bar.fill === "function") {
     // PixiJS v8 style API
     bar.roundRect(0, 0, 80, 24, 8).fill(0xd2b16f);
