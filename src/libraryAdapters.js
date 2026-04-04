@@ -1,10 +1,10 @@
 const CDN = {
-  phaser: "https://cdn.jsdelivr.net/npm/phaser@3/dist/phaser.js",
-  phina: "https://cdn.jsdelivr.net/npm/phina.js@0.2.3/build/phina.min.js",
-  babylon: "https://cdn.babylonjs.com/babylon.js",
-  pixi: "https://cdn.jsdelivr.net/npm/pixi.js@7.4.2/dist/pixi.min.js",
+  phaser: "./vendor/phaser.js?v=20260404c",
+  phina: "./vendor/phina.min.js?v=20260404c",
+  babylon: "./vendor/babylon.js?v=20260404c",
+  pixi: "./vendor/pixi.min.js?v=20260404c",
   enchant: "./vendor/enchant.js?v=20260404a",
-  kiwi: "https://cdn.jsdelivr.net/npm/kiwi.js@1.4.0/dist/kiwi.min.js",
+  kiwi: "./vendor/kiwi.min.js?v=20260404c",
 };
 
 const scriptCache = new Map();
