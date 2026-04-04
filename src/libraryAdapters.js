@@ -268,7 +268,7 @@ async function mountKiwi(container) {
 
   const state = new window.Kiwi.State("DemoState");
   state.create = function create() {
-    const text = new window.Kiwi.GameObjects.Textfield(this, "Kiwi.js loaded", 120, 100, "22px serif", "#d2b16f", "left");
+    const text = new window.Kiwi.GameObjects.TextField(this, "Kiwi.js loaded", 120, 100, "#d2b16f", 22, "normal", "serif");
     this.addChild(text);
   };
 
