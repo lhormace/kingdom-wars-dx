@@ -266,9 +266,7 @@ async function mountKiwi(container) {
 
   let game = null;
   try {
-    game = new window.Kiwi.Game(holder, "KiwiDemo", null, gameOptions);
-    game.states.addState(state);
-    game.states.switchState("DemoState");
+    game = new window.Kiwi.Game(`#${holder.id}`, "KiwiDemo", state, gameOptions);
   } catch (error) {
     const fallback = createCanvas(holder);
     const ctx = fallback.getContext("2d");
