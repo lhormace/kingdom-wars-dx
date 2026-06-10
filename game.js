@@ -451,6 +451,9 @@ class MainScene extends Phaser.Scene {
     this.magicEffects = [];
     this.message = `STAGE ${this.stage} 開始。王・騎士・大魔法使い・僧侶の隊列で進軍してください。`;
 
+    this.ambushTriggered = false;
+    this.reinforcementKillMark = 0;
+
     this.generateMap();
     this.spawnEntities();
     this.snapVisualState();
@@ -881,6 +884,7 @@ class MainScene extends Phaser.Scene {
 
     this.tryPriestHeal();
     this.updateWorldEvents(dt);
+    this.updateGimmicks();
     this.updateVisualState(dt);
     this.renderAll();
   }
@@ -1066,13 +1070,24 @@ class MainScene extends Phaser.Scene {
     if (this.prisonerTiles?.has(heroTileKey)) {
       const pIndex = this.prisoners.findIndex((p) => this.tileKey(p.x, p.y) === heroTileKey);
       if (pIndex < 0) return;
+      const rescued = this.prisoners[pIndex];
       this.prisoners.splice(pIndex, 1);
       this.prisonerTiles.delete(heroTileKey);
       const nextCount = this.formation.length + 1;
-      this.formation.push(nextCount % 3 === 0 ? { type: "knight" } : { type: "soldier" });
+      const newUnit = nextCount % 3 === 0 ? { type: "knight" } : { type: "soldier" };
+      this.formation.push(newUnit);
       this.score += 20;
+      this.hero.hp = Math.min(this.hero.maxHp, this.hero.hp + 1);
       this.audio?.playSfx("pickup");
-      this.message = nextCount % 3 === 0 ? "捕虜を救出。騎士が加入。" : "捕虜を救出。兵が加入。";
+      this.worldEffects.push({
+        type: "rescue",
+        x: rescued.x - 1,
+        y: rescued.y - 1,
+        size: 3,
+        expiresAt: this.time.now + 900,
+      });
+      const unitLabel = newUnit.type === "knight" ? "騎士" : "兵士";
+      this.message = `捕虜を救出！${unitLabel}が加入。（隊列 ${this.formation.length}人 / HP+1）`;
     }
 
     if (this.excalibur && !this.excalibur.picked && this.excaliburTileKey === heroTileKey) {
@@ -1279,6 +1294,78 @@ class MainScene extends Phaser.Scene {
       : "悪魔が降臨し、4x4 の地を闇の世界へ堕落させました。";
     this.renderAll();
     this.updateHud();
+  }
+
+  updateGimmicks() {
+    if (this.phase !== "playing") return;
+
+    // Stage 2+: ambush from behind when crossing midpoint
+    if (this.stage >= 2 && !this.ambushTriggered && this.hero.x >= Math.floor(this.mapW / 2)) {
+      this.ambushTriggered = true;
+      const spawnX = Math.max(1, this.hero.x - 6);
+      let spawned = 0;
+      for (let attempt = 0; attempt < 30 && spawned < 4; attempt++) {
+        const y = Phaser.Math.Between(1, this.mapH - 2);
+        const x = spawnX + Phaser.Math.Between(0, 3);
+        if (
+          this.inBounds(x, y) &&
+          this.getTile(x, y) !== this.TILES.WATER &&
+          this.getTile(x, y) !== this.TILES.WALL &&
+          this.getTile(x, y) !== this.TILES.CASTLE &&
+          !(this.hero.x === x && this.hero.y === y) &&
+          !this.enemies.some(e => this.enemyOccupies(e, x, y))
+        ) {
+          const type = spawned % 2 === 0 ? "soldier" : "scout";
+          this.enemies.push({
+            type,
+            x, y,
+            hp: 1, maxHp: 1,
+            power: 3 + Math.floor(this.stage / 2),
+            color: type === "scout" ? this.colors.scout : this.colors.enemy,
+          });
+          spawned++;
+        }
+      }
+      if (spawned > 0) {
+        this.audio?.playSfx("damage");
+        this.message = `伏兵だ！背後から ${spawned} 体の敵が現れた！`;
+        this.renderAll();
+        this.updateHud();
+      }
+    }
+
+    // Stage 3+: reinforcement wave every 5 kills
+    if (this.stage >= 3 && this.kills >= this.reinforcementKillMark + 5) {
+      this.reinforcementKillMark = this.kills;
+      const xMin = Math.floor(this.mapW * 0.5);
+      const xMax = this.mapW - 8;
+      let spawned = 0;
+      for (let attempt = 0; attempt < 40 && spawned < 3; attempt++) {
+        const x = Phaser.Math.Between(xMin, xMax);
+        const y = Phaser.Math.Between(1, this.mapH - 2);
+        if (
+          this.inBounds(x, y) &&
+          this.getTile(x, y) !== this.TILES.WATER &&
+          this.getTile(x, y) !== this.TILES.WALL &&
+          this.getTile(x, y) !== this.TILES.CASTLE &&
+          !this.enemies.some(e => this.enemyOccupies(e, x, y))
+        ) {
+          this.enemies.push({
+            type: "soldier",
+            x, y,
+            hp: 1, maxHp: 1,
+            power: 3 + Math.floor(this.stage / 2),
+            color: this.colors.enemy,
+          });
+          spawned++;
+        }
+      }
+      if (spawned > 0) {
+        this.message = `敵の増援が到着！前方に ${spawned} 体出現。`;
+        this.renderAll();
+        this.updateHud();
+      }
+    }
   }
 
   findWorldEventArea(xMin, xMax) {
@@ -1653,12 +1740,33 @@ class MainScene extends Phaser.Scene {
     }
 
     for (const effect of this.worldEffects) {
-      const life = effect.type === "excalibur" ? 1400 : 3200;
+      const life = effect.type === "excalibur" ? 1400 : effect.type === "rescue" ? 900 : 3200;
       const age = Phaser.Math.Clamp((effect.expiresAt - this.time.now) / life, 0, 1);
-      const color = effect.type === "angel" ? 0xf3e7b0 : effect.type === "excalibur" ? 0xe0c063 : 0xc9b07b;
+      const color = effect.type === "angel" ? 0xf3e7b0 : effect.type === "excalibur" ? 0xe0c063 : effect.type === "rescue" ? 0x6afcb8 : 0xc9b07b;
       const px = effect.x * this.tileSize;
       const py = effect.y * this.tileSize;
       const size = effect.size * this.tileSize;
+
+      if (effect.type === "rescue") {
+        const cx = px + size / 2;
+        const cy = py + size / 2;
+        const expand = (1 - age);
+        this.unitGraphics.lineStyle(3, 0x6afcb8, age * 0.9);
+        this.unitGraphics.strokeCircle(cx, cy, expand * this.tileSize * 2.2);
+        this.unitGraphics.lineStyle(2, 0xffffff, age * 0.5);
+        this.unitGraphics.strokeCircle(cx, cy, expand * this.tileSize * 1.4);
+        for (let s = 0; s < 6; s++) {
+          const angle = (s / 6) * Math.PI * 2;
+          const r = expand * this.tileSize * 2.0;
+          const sx = cx + Math.cos(angle) * r;
+          const sy = cy + Math.sin(angle) * r;
+          this.unitGraphics.fillStyle(0x6afcb8, age * 0.85);
+          this.unitGraphics.fillCircle(sx, sy, 4 * age);
+        }
+        this.unitGraphics.fillStyle(0xffffff, age * 0.6);
+        this.unitGraphics.fillCircle(cx, cy, 5 * age);
+        continue;
+      }
 
       this.unitGraphics.lineStyle(2 + age * 2, color, 0.35 + age * 0.35);
       this.unitGraphics.strokeRect(px, py, size, size);
