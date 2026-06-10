@@ -453,6 +453,8 @@ class MainScene extends Phaser.Scene {
 
     this.ambushTriggered = false;
     this.reinforcementKillMark = 0;
+    this.comboStreak = 0;
+    this.enemyMoveTimer = 2.5;
 
     this.generateMap();
     this.spawnEntities();
@@ -884,6 +886,7 @@ class MainScene extends Phaser.Scene {
 
     this.tryPriestHeal();
     this.updateWorldEvents(dt);
+    this.updateEnemyMovement(dt);
     this.updateGimmicks();
     this.updateVisualState(dt);
     this.renderAll();
@@ -1017,29 +1020,41 @@ class MainScene extends Phaser.Scene {
     }
 
     const front = this.formation.length > 0 ? this.formation[0] : { type: "hero" };
-    const player = (front.type === "knight" ? rand(3, 8) : front.type === "soldier" ? rand(1, 6) : rand(4, 9)) + 2;
+    const frontIsKnight = front.type === "knight";
+    const comboBonus = Math.floor((this.comboStreak ?? 0) / 3);
+    const player = (frontIsKnight ? rand(3, 8) : front.type === "soldier" ? rand(1, 6) : rand(4, 9)) + 2 + comboBonus;
     const foe = rand(1, 6) + enemy.power;
     this.audio?.playSfx("attack");
 
     if (player >= foe) {
-      enemy.hp -= enemy.type === "finalBoss" ? 2 : 1;
+      const baseDmg = enemy.type === "finalBoss" ? 2 : 1;
+      const knightBonus = frontIsKnight && enemy.type !== "finalBoss" ? 1 : 0;
+      enemy.hp -= baseDmg + knightBonus;
+      this.comboStreak = (this.comboStreak ?? 0) + 1;
       this.audio?.playSfx(enemy.type === "finalBoss" ? "boss" : "hit");
       if (enemy.hp <= 0) {
         this.hero.x = targetX ?? enemy.x;
         this.hero.y = targetY ?? enemy.y;
         this.removeEnemy(enemyIndex);
-        this.message = enemy.type === "finalBoss" ? "龍ラスボスを撃破しました。" : `${enemy.type} を撃破しました。`;
+        const comboLabel = this.comboStreak >= 3 ? `【${this.comboStreak}連撃！】` : "";
+        this.message = enemy.type === "finalBoss"
+          ? `${comboLabel}龍ラスボスを撃破しました。`
+          : `${comboLabel}${frontIsKnight ? "騎士の一撃で" : ""}${enemy.type} を撃破。`;
       } else {
-        this.message = enemy.type === "finalBoss" ? "龍ラスボスに傷を負わせました。" : `${enemy.type} にダメージ。`;
+        const comboLabel = this.comboStreak >= 3 ? `【${this.comboStreak}連撃】` : "";
+        this.message = enemy.type === "finalBoss"
+          ? `${comboLabel}龍ラスボスに傷を負わせました。`
+          : `${comboLabel}${frontIsKnight ? "騎士の一撃：" : ""}${enemy.type} にダメージ。`;
       }
       return;
     }
 
+    this.comboStreak = 0;
     if (this.formation.length > 0) {
       const lost = this.formation.shift();
       this.audio?.playSfx("damage");
       this.damageRegenDelay = 6;
-      this.message = lost.type === "knight" ? "騎士が倒れました。" : "兵が倒れました。";
+      this.message = lost.type === "knight" ? "騎士が倒れました。連撃リセット。" : "兵が倒れました。連撃リセット。";
       return;
     }
 
@@ -1294,6 +1309,33 @@ class MainScene extends Phaser.Scene {
       : "悪魔が降臨し、4x4 の地を闇の世界へ堕落させました。";
     this.renderAll();
     this.updateHud();
+  }
+
+  updateEnemyMovement(dt) {
+    if (this.phase !== "playing" || !dt) return;
+    this.enemyMoveTimer -= dt;
+    if (this.enemyMoveTimer > 0) return;
+    this.enemyMoveTimer = 2.5 - Math.min(1.2, (this.stage - 1) * 0.2);
+
+    for (const e of this.enemies) {
+      if (["miniboss", "finalBoss"].includes(e.type)) continue;
+      const dx = Math.sign(this.hero.x - e.x);
+      const dy = Math.sign(this.hero.y - e.y);
+      const candidates = [];
+      if (dx !== 0) candidates.push({ x: e.x + dx, y: e.y });
+      if (dy !== 0) candidates.push({ x: e.x, y: e.y + dy });
+
+      for (const c of candidates) {
+        if (!this.inBounds(c.x, c.y)) continue;
+        if (!this.isPassable(c.x, c.y)) continue;
+        if (c.x === this.hero.x && c.y === this.hero.y) continue;
+        if (this.enemies.some(other => other !== e && this.enemyOccupies(other, c.x, c.y))) continue;
+        if (this.prisoners.some(p => p.x === c.x && p.y === c.y)) continue;
+        e.x = c.x;
+        e.y = c.y;
+        break;
+      }
+    }
   }
 
   updateGimmicks() {
