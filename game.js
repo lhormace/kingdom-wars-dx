@@ -230,6 +230,15 @@ class MainScene extends Phaser.Scene {
       padding: { x: 4, y: 2 },
     }).setDepth(1001);
 
+    this.comboText = this.add.text(0, 0, "", {
+      fontFamily: "Georgia, serif",
+      fontSize: "18px",
+      fontStyle: "bold",
+      color: "#ffd54f",
+      stroke: "#4a2800",
+      strokeThickness: 4,
+    }).setDepth(1002).setVisible(false);
+
     this.setupOverlayText();
     this.bindDomButtons();
     this.bindMovementInput();
@@ -455,6 +464,7 @@ class MainScene extends Phaser.Scene {
     this.reinforcementKillMark = 0;
     this.comboStreak = 0;
     this.enemyMoveTimer = 2.5;
+    this.bossRoarTimer = 6.0;
 
     this.generateMap();
     this.spawnEntities();
@@ -887,6 +897,7 @@ class MainScene extends Phaser.Scene {
     this.tryPriestHeal();
     this.updateWorldEvents(dt);
     this.updateEnemyMovement(dt);
+    this.updateBossRoar(dt);
     this.updateGimmicks();
     this.updateVisualState(dt);
     this.renderAll();
@@ -1077,6 +1088,19 @@ class MainScene extends Phaser.Scene {
 
     this.score += enemy.type === "finalBoss" ? 500 : enemy.type === "miniboss" ? 180 : enemy.type === "knight" ? 35 : 10;
     this.kills += enemy.type === "finalBoss" ? 20 : enemy.type === "miniboss" ? 5 : enemy.type === "knight" ? 2 : 1;
+
+    const isBoss = enemy.type === "finalBoss";
+    const burstSize = isBoss ? 6 : enemy.type === "miniboss" ? 3 : 1;
+    const burstDur = isBoss ? 1800 : enemy.type === "miniboss" ? 1000 : 500;
+    this.worldEffects.push({
+      type: "kill",
+      x: enemy.x - Math.floor(burstSize / 2),
+      y: enemy.y - Math.floor(burstSize / 2),
+      size: burstSize,
+      color: isBoss ? 0xffd54f : enemy.type === "miniboss" ? 0xce93d8 : 0xff8a65,
+      expiresAt: this.time.now + burstDur,
+    });
+
     this.enemies.splice(index, 1);
   }
 
@@ -1336,6 +1360,52 @@ class MainScene extends Phaser.Scene {
         break;
       }
     }
+  }
+
+  updateBossRoar(dt) {
+    if (this.phase !== "playing" || !dt) return;
+    const boss = this.enemies.find(e => e.type === "finalBoss");
+    if (!boss) return;
+
+    this.bossRoarTimer -= dt;
+    if (this.bossRoarTimer > 0) return;
+    this.bossRoarTimer = Math.max(3.0, 6.0 - (this.stage - 1) * 0.5);
+
+    const roarRadius = 5;
+    const heroDistX = Math.abs(this.hero.x - (boss.x + 2));
+    const heroDistY = Math.abs(this.hero.y - (boss.y + 2));
+    const heroInRange = heroDistX <= roarRadius && heroDistY <= roarRadius;
+
+    this.worldEffects.push({
+      type: "bossRoar",
+      x: boss.x - 2,
+      y: boss.y - 2,
+      size: 8,
+      expiresAt: this.time.now + 1200,
+    });
+    this.audio?.playSfx("boss");
+
+    if (heroInRange) {
+      if (this.formation.length > 0) {
+        this.formation.shift();
+        this.damageRegenDelay = Math.max(this.damageRegenDelay, 4);
+        this.message = "龍が吠えた！衝撃波が隊列を吹き飛ばした！";
+      } else {
+        this.hero.hp = Math.max(0, this.hero.hp - 1);
+        this.damageRegenDelay = Math.max(this.damageRegenDelay, 6);
+        this.message = "龍が吠えた！王が衝撃波を受けた！";
+        if (this.hero.hp <= 0) {
+          this.hero.hp = 0;
+          this.phase = "gameover";
+          this.showGameOverOverlay();
+        }
+      }
+    } else {
+      this.message = "龍が遠吠えしている…近づくな！";
+    }
+
+    this.renderAll();
+    this.updateHud();
   }
 
   updateGimmicks() {
@@ -1810,6 +1880,48 @@ class MainScene extends Phaser.Scene {
         continue;
       }
 
+      if (effect.type === "kill") {
+        const cx = px + size / 2;
+        const cy = py + size / 2;
+        const killColor = effect.color ?? 0xff8a65;
+        const rays = size >= 6 ? 12 : size >= 3 ? 8 : 5;
+        for (let s = 0; s < rays; s++) {
+          const angle = (s / rays) * Math.PI * 2 + (1 - age) * 2;
+          const r = (1 - age) * this.tileSize * (size >= 6 ? 3.5 : size >= 3 ? 2.2 : 1.2);
+          const sx = cx + Math.cos(angle) * r;
+          const sy = cy + Math.sin(angle) * r;
+          this.unitGraphics.fillStyle(killColor, age * 0.9);
+          this.unitGraphics.fillCircle(sx, sy, (size >= 6 ? 7 : size >= 3 ? 5 : 3) * age);
+        }
+        this.unitGraphics.fillStyle(0xffffff, age * 0.7);
+        this.unitGraphics.fillCircle(cx, cy, (size >= 6 ? 14 : 6) * age);
+        this.unitGraphics.lineStyle(2, killColor, age * 0.5);
+        this.unitGraphics.strokeCircle(cx, cy, (1 - age) * this.tileSize * (size >= 6 ? 4 : 2));
+        continue;
+      }
+
+      if (effect.type === "bossRoar") {
+        const cx = px + size / 2;
+        const cy = py + size / 2;
+        const expand = (1 - age);
+        for (let ring = 0; ring < 3; ring++) {
+          const r = expand * this.tileSize * (2.5 + ring * 1.5) + ring * 6;
+          this.unitGraphics.lineStyle(4 - ring, 0xffd54f, age * (0.7 - ring * 0.15));
+          this.unitGraphics.strokeCircle(cx, cy, r);
+        }
+        this.unitGraphics.fillStyle(0xffd54f, age * 0.08);
+        this.unitGraphics.fillCircle(cx, cy, expand * this.tileSize * 5.5);
+        for (let s = 0; s < 8; s++) {
+          const angle = (s / 8) * Math.PI * 2;
+          const r = expand * this.tileSize * 4.5;
+          const sx = cx + Math.cos(angle) * r;
+          const sy = cy + Math.sin(angle) * r;
+          this.unitGraphics.fillStyle(0xffe082, age * 0.6);
+          this.unitGraphics.fillTriangle(cx, cy, sx + Math.cos(angle + 0.4) * 8, sy + Math.sin(angle + 0.4) * 8, sx + Math.cos(angle - 0.4) * 8, sy + Math.sin(angle - 0.4) * 8);
+        }
+        continue;
+      }
+
       this.unitGraphics.lineStyle(2 + age * 2, color, 0.35 + age * 0.35);
       this.unitGraphics.strokeRect(px, py, size, size);
       this.unitGraphics.fillStyle(color, 0.08 + age * 0.08);
@@ -1886,6 +1998,18 @@ class MainScene extends Phaser.Scene {
     this.syncDomButtons();
     this.infoText.setText(`状態 ${phaseLabel}  STAGE ${this.stage}  SCORE ${this.score}  HP ${this.hero?.hp ?? 8}/${this.hero?.maxHp ?? 8}  兵 ${soldiers}  騎士 ${knights}  魔 ${Math.floor(this.mage?.mana ?? 0)}/${this.mage?.maxMana ?? 0}  僧 ${Math.floor(this.priest?.mana ?? 0)}/${this.priest?.maxMana ?? 0}  聖剣 ${this.hero?.hasExcalibur ? "有" : "無"}  自然回復 ${this.damageRegenDelay > 0 ? "待機中" : "有効"}`);
     this.messageText.setText(this.message);
+
+    const combo = this.comboStreak ?? 0;
+    if (combo >= 3 && this.hero && this.phase === "playing") {
+      const hx = (typeof this.hero.displayX === "number" ? this.hero.displayX : this.hero.x) * this.tileSize;
+      const hy = (typeof this.hero.displayY === "number" ? this.hero.displayY : this.hero.y) * this.tileSize;
+      this.comboText.setPosition(hx + this.tileSize + 2, hy - 20);
+      this.comboText.setText(`${combo}連撃`);
+      this.comboText.setVisible(true);
+    } else {
+      this.comboText?.setVisible(false);
+    }
+
     this.pushWarRoomState();
   }
 
