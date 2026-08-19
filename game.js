@@ -1,4 +1,5 @@
-import { createWarRoom } from "./src/gameEnhancements.js";
+import { rollChoices, FORMATION_DRAFT_POOL, SKILL_DRAFT_POOL } from "./src/runState.js";
+import { loadMeta, saveMeta, earnForRun, SHOP_ITEMS, ownsUpgrade, purchaseUpgrade } from "./src/metaProgress.js";
 
 function rand(min, max) {
   return Math.floor(Math.random() * (max - min + 1)) + min;
@@ -160,6 +161,13 @@ class MainScene extends Phaser.Scene {
     this.damageRegenDelay = 0;
     this.passiveHealTick = 0;
     this.companionTexts = [];
+    this.meta = loadMeta();
+    this.acquiredSkills = [];
+    this.formationLevel = { soldierDiceBonus: 0, knightDiceBonus: 0 };
+    this.heroBonusMaxHp = 0;
+    this.draftStep = null;
+    this.draftChoices = [];
+    this.lastRunReward = 0;
     this.setupCompanions();
     this.resetWorldState();
 
@@ -177,6 +185,8 @@ class MainScene extends Phaser.Scene {
       scout: 0xc96b4b,
       enemy: 0xa84634,
       enemyKnight: 0xc07256,
+      enemyArcher: 0x8a6f9e,
+      zombie: 0x6f8a5c,
       prisoner: 0x8fc8bb,
       excalibur: 0xe0c063,
       mage: 0x7db7af,
@@ -188,11 +198,11 @@ class MainScene extends Phaser.Scene {
     };
 
     this.cursors = this.input.keyboard.createCursorKeys();
-    this.keys = this.input.keyboard.addKeys("W,A,S,D,F,R,ENTER,SPACE");
+    this.keys = this.input.keyboard.addKeys("W,A,S,D,F,Q,E,R,ENTER,SPACE,ONE,TWO,THREE");
     this.input.keyboard.addCapture([
       "W", "A", "S", "D",
       "UP", "DOWN", "LEFT", "RIGHT",
-      "SPACE", "ENTER", "R", "F",
+      "SPACE", "ENTER", "R", "F", "Q", "E",
     ]);
     this.movementInput = {
       left: { isDown: false, justPressed: false, lastPressedAt: 0 },
@@ -219,16 +229,10 @@ class MainScene extends Phaser.Scene {
       color: "#eadfc4",
       backgroundColor: "#1a120b",
       padding: { x: 8, y: 5 },
-      wordWrap: { width: 760 },
+      wordWrap: { width: 760, useAdvancedWrap: true },
     }).setDepth(1000).setScrollFactor(0);
 
-    this.mageMpText = this.add.text(0, 0, "", {
-      fontFamily: "Georgia, serif",
-      fontSize: "12px",
-      color: "#eff4e7",
-      backgroundColor: "rgba(20, 26, 18, 0.82)",
-      padding: { x: 4, y: 2 },
-    }).setDepth(1001);
+    this.bindPartyHudDom();
 
     this.comboText = this.add.text(0, 0, "", {
       fontFamily: "Georgia, serif",
@@ -244,10 +248,6 @@ class MainScene extends Phaser.Scene {
     this.bindMovementInput();
     this.showTitleOverlay();
     this.syncDomButtons();
-    this.warRoom = createWarRoom();
-    this.warRoom.mount().then(() => this.pushWarRoomState()).catch((error) => {
-      console.error("Failed to mount war room.", error);
-    });
     this.updateHud();
   }
 
@@ -275,7 +275,7 @@ class MainScene extends Phaser.Scene {
       color: "#f6efdf",
       align: "center",
       lineSpacing: 10,
-      wordWrap: { width: 560 },
+      wordWrap: { width: 560, useAdvancedWrap: true },
     }).setOrigin(0.5).setDepth(101);
 
     this.overlayHint = this.add.text(this.scale.width / 2, 430, "", {
@@ -295,14 +295,16 @@ class MainScene extends Phaser.Scene {
       if (this.phase === "title") this.startNewRun();
       else if (this.phase === "playing") this.togglePause();
       else if (this.phase === "paused") this.togglePause();
-      else if (this.phase === "clear") this.beginNextStage();
-      else if (this.phase === "gameover") this.restartCurrentStage();
+      else if (this.phase === "clear") this.proceedFromClear();
+      else if (this.phase === "gameover") this.startNewRun();
+      else if (this.phase === "shop") this.closeShop();
     });
 
     this.restartButton?.addEventListener("click", () => {
       this.audio.unlock();
       if (this.phase === "title") this.startNewRun();
-      else this.restartCurrentStage();
+      else if (this.phase === "gameover") this.startNewRun();
+      else if (this.phase === "playing" || this.phase === "paused") this.restartCurrentStage();
     });
   }
 
@@ -399,8 +401,10 @@ class MainScene extends Phaser.Scene {
         title: "ゲーム開始",
         playing: this.isPaused ? "再開" : "一時停止",
         paused: "再開",
-        clear: "次のステージ",
-        gameover: "再挑戦",
+        clear: "編成・秘術を選ぶ",
+        draftpick: "カードを選択",
+        gameover: "新しいラン",
+        shop: "タイトルへ戻る",
       };
       this.startButton.textContent = labels[this.phase] ?? "ゲーム開始";
     }
@@ -414,6 +418,22 @@ class MainScene extends Phaser.Scene {
     this.stage = 1;
     this.score = 0;
     this.kills = 0;
+    this.acquiredSkills = [];
+    this.formationLevel = { soldierDiceBonus: 0, knightDiceBonus: 0 };
+    this.heroBonusMaxHp = ownsUpgrade(this.meta, "hero_hp_up") ? 2 : 0;
+    this.setupCompanions();
+    if (ownsUpgrade(this.meta, "mage_mana_up")) {
+      this.mage.maxMana += 2;
+      this.mage.mana = this.mage.maxMana;
+    }
+    this.formation = [
+      { type: "soldier" },
+      { type: "soldier" },
+      { type: "knight" },
+    ];
+    if (ownsUpgrade(this.meta, "extra_soldier_start")) {
+      this.formation.push({ type: "soldier" });
+    }
     this.startStage();
     this.focusGameCanvas();
   }
@@ -423,32 +443,90 @@ class MainScene extends Phaser.Scene {
     this.focusGameCanvas();
   }
 
+  proceedFromClear() {
+    if (this.phase !== "clear") return;
+    this.draftStep = "formation";
+    this.draftChoices = rollChoices(FORMATION_DRAFT_POOL, 3);
+    this.phase = "draftpick";
+    this.showDraftOverlay();
+  }
+
+  selectDraftChoice(index) {
+    if (this.phase !== "draftpick") return;
+    const choice = this.draftChoices[index];
+    if (!choice) return;
+    choice.apply(this);
+    this.audio?.playSfx("pickup");
+
+    if (this.draftStep === "formation") {
+      this.draftStep = "skill";
+      this.draftChoices = rollChoices(SKILL_DRAFT_POOL, 3, this.acquiredSkills);
+      this.showDraftOverlay();
+    } else {
+      this.draftStep = null;
+      this.hideDraftOverlay();
+      this.beginNextStage();
+    }
+  }
+
   beginNextStage() {
     this.phase = "playing";
     this.startStage();
     this.focusGameCanvas();
   }
 
+  handleGameOver() {
+    this.phase = "gameover";
+    this.lastRunReward = earnForRun(this.meta, { stageReached: this.stage, kills: this.kills });
+    saveMeta(this.meta);
+    this.showGameOverOverlay();
+  }
+
+  openShop() {
+    if (this.phase !== "title") return;
+    this.phase = "shop";
+    this.showShopOverlay();
+  }
+
+  closeShop() {
+    if (this.phase !== "shop") return;
+    this.showTitleOverlay();
+  }
+
+  purchaseShopItem(index) {
+    if (this.phase !== "shop") return;
+    const item = SHOP_ITEMS[index];
+    if (!item) return;
+    if (purchaseUpgrade(this.meta, item.id)) {
+      saveMeta(this.meta);
+      this.audio?.playSfx("pickup");
+    } else {
+      this.audio?.playSfx("damage");
+    }
+    this.showShopOverlay();
+  }
+
   startStage() {
     this.phase = "playing";
     this.isPaused = false;
-    this.setupCompanions();
     this.resetWorldState();
+    const maxHp = 8 + (this.heroBonusMaxHp || 0);
     this.hero = {
       x: 2,
       y: 12,
-      hp: 8,
-      maxHp: 8,
+      hp: maxHp,
+      maxHp,
       hasExcalibur: false,
     };
     this.damageRegenDelay = 0;
     this.passiveHealTick = 0;
 
-    this.formation = [
-      { type: "soldier" },
-      { type: "soldier" },
-      { type: "knight" },
-    ];
+    this.mage.mana = this.mage.maxMana;
+    this.mage.cooldown = 0;
+    this.mage.recoveryDelay = 0;
+    this.priest.mana = this.priest.maxMana;
+    this.priest.cooldown = 0;
+    this.priest.recoveryDelay = 0;
 
     this.enemies = [];
     this.prisoners = [];
@@ -479,6 +557,7 @@ class MainScene extends Phaser.Scene {
 
   showTitleOverlay() {
     this.phase = "title";
+    this.hideDraftOverlay();
     this.audio?.setMusicEnabled(false);
     this.generateMap();
     this.hero = { x: 4, y: this.roadY, hp: 8, maxHp: 8, hasExcalibur: false };
@@ -506,17 +585,19 @@ class MainScene extends Phaser.Scene {
     this.overlaySubtitle.setText("王国軍を率いて敵城を攻略せよ").setVisible(true);
     this.overlayBody.setText([
       "・矢印キー / WASD で前進・後退・上下移動",
-      "・F で前方の敵へ魔法攻撃",
+      "・F 光弾 / Q 業火（範囲） / E 極光の槍（貫通）で前方の敵を攻撃",
       "・王の後方には騎士・大魔法使い・僧侶が最初から同行します",
       "・時間経過で王のHPが少しずつ自動回復します",
       "・聖剣を拾うと強敵と4x4 の龍ラスボスに有利になります",
-      "・翡翠色の平原と金の紋様は、古きケルトの戦場を映しています",
+      "・ステージクリアごとに部隊編成と秘術/呪文をカードから選べます",
+      `・所持メタ通貨 ${this.meta?.currency ?? 0}（S キーでショップ）`,
     ]).setVisible(true);
     this.overlayHint.setText("Enter / Space / 開始ボタンで出撃").setVisible(true);
     this.syncDomButtons();
   }
 
   showStageClearOverlay() {
+    this.hideDraftOverlay();
     this.overlayGraphics.clear();
     this.overlayGraphics.fillStyle(0x102116, 0.84);
     this.overlayGraphics.fillRoundedRect(120, 160, 528, 220, 22);
@@ -527,12 +608,13 @@ class MainScene extends Phaser.Scene {
     this.audio?.playSfx("clear");
     this.overlayTitle.setText("STAGE CLEAR").setVisible(true);
     this.overlaySubtitle.setText(`ステージ ${this.stage - 1} を突破しました`).setVisible(true);
-    this.overlayBody.setText("開始ボタンで次ステージへ、やり直しボタンで同じステージを再挑戦できます。\n敵の配置は毎回変化します。").setVisible(true);
-    this.overlayHint.setText("Enter / 開始ボタンで次のステージへ").setVisible(true);
+    this.overlayBody.setText("開始ボタンで部隊編成・秘術のドラフトへ進みます。\n敵の配置は毎回変化します。").setVisible(true);
+    this.overlayHint.setText("Enter / 開始ボタンでドラフトへ").setVisible(true);
     this.syncDomButtons();
   }
 
   showGameOverOverlay() {
+    this.hideDraftOverlay();
     this.overlayGraphics.clear();
     this.overlayGraphics.fillStyle(0x24110c, 0.84);
     this.overlayGraphics.fillRoundedRect(120, 160, 528, 220, 22);
@@ -543,8 +625,12 @@ class MainScene extends Phaser.Scene {
     this.audio?.playSfx("damage");
     this.overlayTitle.setText("GAME OVER").setVisible(true);
     this.overlaySubtitle.setText("王国軍が壊滅しました").setVisible(true);
-    this.overlayBody.setText("やり直しボタンまたは R キーでステージを再挑戦できます。\n味方を救いながら隊列を維持して進軍しましょう。").setVisible(true);
-    this.overlayHint.setText("R / やり直しボタンで再挑戦").setVisible(true);
+    this.overlayBody.setText([
+      `到達ステージ ${this.stage}  撃破数 ${this.kills}`,
+      `メタ通貨を ${this.lastRunReward ?? 0} 獲得（所持 ${this.meta?.currency ?? 0}）`,
+      "新しいランボタンまたは R キーで再挑戦できます。",
+    ].join("\n")).setVisible(true);
+    this.overlayHint.setText("R / 新しいランボタンで再挑戦").setVisible(true);
     this.syncDomButtons();
   }
 
@@ -554,6 +640,7 @@ class MainScene extends Phaser.Scene {
     this.overlaySubtitle.setVisible(false);
     this.overlayBody.setVisible(false);
     this.overlayHint.setVisible(false);
+    this.hideDraftOverlay();
   }
 
   togglePause() {
@@ -601,6 +688,7 @@ class MainScene extends Phaser.Scene {
   }
 
   showPauseOverlay() {
+    this.hideDraftOverlay();
     this.overlayGraphics.clear();
     this.overlayGraphics.fillStyle(0x101a15, 0.82);
     this.overlayGraphics.fillRoundedRect(150, 170, 468, 204, 22);
@@ -611,6 +699,124 @@ class MainScene extends Phaser.Scene {
     this.overlaySubtitle.setText("進軍を中断中").setVisible(true);
     this.overlayBody.setText("開始ボタンまたは Enter / Space で戦線へ復帰します。\nやり直しボタンならこのステージを最初から再挑戦できます。").setVisible(true);
     this.overlayHint.setText("開始ボタンで再開 / R で再挑戦").setVisible(true);
+    this.syncDomButtons();
+  }
+
+  ensureDraftCardObjects() {
+    if (this.draftCardZones) return;
+    this.draftCardZones = [];
+    this.draftCardGraphics = [];
+    this.draftCardTexts = [];
+    for (let i = 0; i < 3; i++) {
+      const g = this.add.graphics().setDepth(101);
+      const text = this.add.text(0, 0, "", {
+        fontFamily: "Georgia, serif",
+        fontSize: "14px",
+        color: "#f0e6cf",
+        align: "center",
+        wordWrap: { width: 180, useAdvancedWrap: true },
+        lineSpacing: 6,
+      }).setOrigin(0.5, 0).setDepth(102);
+      const zone = this.add.rectangle(0, 0, 10, 10, 0xffffff, 0).setDepth(103).setInteractive({ useHandCursor: true });
+      zone.on("pointerdown", () => {
+        if (this.phase === "draftpick") this.selectDraftChoice(i);
+        else if (this.phase === "shop") this.purchaseShopItem(i);
+      });
+      zone.on("pointerover", () => g.setAlpha(1.15));
+      zone.on("pointerout", () => g.setAlpha(1));
+      this.draftCardGraphics.push(g);
+      this.draftCardTexts.push(text);
+      this.draftCardZones.push(zone);
+    }
+  }
+
+  hideDraftOverlay() {
+    this.draftCardZones?.forEach((zone) => zone.setVisible(false));
+    this.draftCardGraphics?.forEach((g) => g.setVisible(false));
+    this.draftCardTexts?.forEach((t) => t.setVisible(false));
+  }
+
+  layoutDraftCards(items, renderCard) {
+    this.ensureDraftCardObjects();
+    const cardWidth = 200;
+    const cardHeight = 260;
+    const gap = 24;
+    const startX = 384 - (cardWidth * 3 + gap * 2) / 2;
+    const y = 170;
+
+    items.forEach((item, i) => {
+      const x = startX + i * (cardWidth + gap);
+      const zone = this.draftCardZones[i];
+      const g = this.draftCardGraphics[i];
+      const text = this.draftCardTexts[i];
+      const { fillColor, strokeColor, label, visible } = renderCard(item, i);
+
+      g.clear();
+      g.fillStyle(fillColor, 0.92);
+      g.fillRoundedRect(x, y, cardWidth, cardHeight, 14);
+      g.lineStyle(2, strokeColor, 0.6);
+      g.strokeRoundedRect(x, y, cardWidth, cardHeight, 14);
+      g.setAlpha(1).setVisible(true);
+
+      text.setPosition(x + cardWidth / 2, y + 18);
+      text.setText(label);
+      text.setVisible(true);
+
+      zone.setPosition(x + cardWidth / 2, y + cardHeight / 2).setSize(cardWidth, cardHeight).setVisible(visible);
+    });
+
+    for (let i = items.length; i < 3; i++) {
+      this.draftCardZones[i]?.setVisible(false);
+      this.draftCardGraphics[i]?.setVisible(false);
+      this.draftCardTexts[i]?.setVisible(false);
+    }
+  }
+
+  showDraftOverlay() {
+    this.overlayGraphics.clear();
+    this.overlayGraphics.fillStyle(0x14100a, 0.88);
+    this.overlayGraphics.fillRoundedRect(48, 90, 672, 420, 22);
+    this.overlayGraphics.lineStyle(2, 0xd2b16f, 0.5);
+    this.overlayGraphics.strokeRoundedRect(48, 90, 672, 420, 22);
+    this.drawOverlayRunes(48, 90, 672, 420);
+
+    const heading = this.draftStep === "formation" ? "部隊編成を選べ" : "秘術・呪文を選べ";
+    this.overlayTitle.setText(heading).setVisible(true);
+    this.overlaySubtitle.setText(`STAGE ${this.stage - 1} クリア報酬`).setVisible(true);
+    this.overlayBody.setText("").setVisible(false);
+    this.overlayHint.setText("カードをクリック、または 1 / 2 / 3 キーで選択").setVisible(true);
+
+    this.layoutDraftCards(this.draftChoices, (choice, i) => ({
+      fillColor: 0x1d2a1f,
+      strokeColor: 0x9cc78a,
+      label: `[${i + 1}] ${choice.name}\n\n${choice.desc}`,
+      visible: true,
+    }));
+    this.syncDomButtons();
+  }
+
+  showShopOverlay() {
+    this.overlayGraphics.clear();
+    this.overlayGraphics.fillStyle(0x141a2a, 0.88);
+    this.overlayGraphics.fillRoundedRect(48, 90, 672, 420, 22);
+    this.overlayGraphics.lineStyle(2, 0x8fb0d2, 0.5);
+    this.overlayGraphics.strokeRoundedRect(48, 90, 672, 420, 22);
+    this.drawOverlayRunes(48, 90, 672, 420);
+
+    this.overlayTitle.setText("恒久強化ショップ").setVisible(true);
+    this.overlaySubtitle.setText(`所持メタ通貨 ${this.meta?.currency ?? 0}`).setVisible(true);
+    this.overlayBody.setText("").setVisible(false);
+    this.overlayHint.setText("1 / 2 / 3 キーまたはクリックで購入、Enter でタイトルへ戻る").setVisible(true);
+
+    this.layoutDraftCards(SHOP_ITEMS, (item) => {
+      const owned = ownsUpgrade(this.meta, item.id);
+      return {
+        fillColor: owned ? 0x2a2a1d : 0x1d2a1f,
+        strokeColor: owned ? 0x8a7a4a : 0x9cc78a,
+        label: `${item.name}\nコスト ${item.cost}\n\n${item.desc}${owned ? "\n\n(取得済み)" : ""}`,
+        visible: !owned,
+      };
+    });
     this.syncDomButtons();
   }
 
@@ -710,6 +916,8 @@ class MainScene extends Phaser.Scene {
   resetWorldState() {
     this.worldEffects = [];
     this.worldMap = [];
+    this.graveyards = [];
+    this.graveyardSpawnTimer = Phaser.Math.FloatBetween(6, 9);
     this.angelEventTimer = Phaser.Math.FloatBetween(8, 13);
     this.devilEventTimer = Phaser.Math.FloatBetween(10, 16);
   }
@@ -731,22 +939,34 @@ class MainScene extends Phaser.Scene {
     }
   }
 
+  buildSquadRoster(stageBoost) {
+    const size = Phaser.Math.Between(2, 4) + Math.floor(stageBoost / 2);
+    const roster = [];
+    for (let i = 0; i < size; i++) {
+      const roll = Math.random();
+      const type = roll < 0.3 ? "scout" : roll < 0.6 ? "soldier" : roll < 0.85 ? "knight" : "archer";
+      const power = (type === "knight" ? 5 : type === "archer" ? 4 : type === "soldier" ? 3 : 2) + Math.floor(stageBoost / 3);
+      roster.push({ type, power });
+    }
+    return roster;
+  }
+
   spawnEntities() {
     const stageBoost = Math.max(0, this.stage - 1);
 
-    for (let i = 0; i < 8 + this.stage; i++) {
-      const p = this.findFreeTile(5, this.mapW - 10);
-      if (p) this.enemies.push({ type: "scout", x: p.x, y: p.y, hp: 1, maxHp: 1, power: 2 + Math.floor(stageBoost / 3), color: this.colors.scout });
-    }
-
-    for (let i = 0; i < 10 + this.stage * 2; i++) {
-      const p = this.findFreeTile(8, this.mapW - 8);
-      if (p) this.enemies.push({ type: "soldier", x: p.x, y: p.y, hp: 1, maxHp: 1, power: 3 + Math.floor(stageBoost / 3), color: this.colors.enemy });
-    }
-
-    for (let i = 0; i < 5 + this.stage; i++) {
-      const p = this.findFreeTile(12, this.mapW - 7);
-      if (p) this.enemies.push({ type: "knight", x: p.x, y: p.y, hp: 2, maxHp: 2, power: 5 + Math.floor(stageBoost / 2), color: this.colors.enemyKnight });
+    const squadCount = 4 + Math.floor(this.stage / 2);
+    for (let i = 0; i < squadCount; i++) {
+      const p = this.findFreeTile(6, this.mapW - 10);
+      if (!p) continue;
+      const roster = this.buildSquadRoster(stageBoost);
+      this.enemies.push({
+        type: "squad",
+        x: p.x,
+        y: p.y,
+        roster,
+        maxRoster: roster.length,
+        color: this.colors.enemy,
+      });
     }
 
     const miniCount = 2 + Math.floor(this.stage / 2);
@@ -779,6 +999,14 @@ class MainScene extends Phaser.Scene {
     if (sword) {
       this.excalibur = { x: sword.x, y: sword.y, picked: false };
       this.excaliburTileKey = this.tileKey(sword.x, sword.y);
+
+      const guards = this.enemies
+        .filter(e => e.type === "squad")
+        .sort((a, b) => (Math.abs(a.x - sword.x) + Math.abs(a.y - sword.y)) - (Math.abs(b.x - sword.x) + Math.abs(b.y - sword.y)))
+        .slice(0, 2);
+      for (const guard of guards) {
+        guard.guardTarget = { x: sword.x, y: sword.y };
+      }
     }
   }
 
@@ -862,20 +1090,39 @@ class MainScene extends Phaser.Scene {
         return;
       }
       if (this.phase === "clear") {
-        this.beginNextStage();
+        this.proceedFromClear();
         return;
       }
       if (this.phase === "gameover") {
-        this.restartCurrentStage();
+        this.startNewRun();
+        return;
+      }
+      if (this.phase === "shop") {
+        this.closeShop();
         return;
       }
     }
 
     if (Phaser.Input.Keyboard.JustDown(this.keys.R)) {
       this.audio.unlock();
-      if (this.phase === "title") this.startNewRun();
-      else this.restartCurrentStage();
+      if (this.phase === "title" || this.phase === "gameover") this.startNewRun();
+      else if (this.phase === "playing" || this.phase === "paused") this.restartCurrentStage();
       return;
+    }
+
+    if (Phaser.Input.Keyboard.JustDown(this.keys.S) && this.phase === "title") {
+      this.audio.unlock();
+      this.openShop();
+      return;
+    }
+
+    if (this.phase === "draftpick" || this.phase === "shop") {
+      const handler = this.phase === "draftpick"
+        ? (i) => this.selectDraftChoice(i)
+        : (i) => this.purchaseShopItem(i);
+      if (Phaser.Input.Keyboard.JustDown(this.keys.ONE)) handler(0);
+      else if (Phaser.Input.Keyboard.JustDown(this.keys.TWO)) handler(1);
+      else if (Phaser.Input.Keyboard.JustDown(this.keys.THREE)) handler(2);
     }
 
     this.updateMagicEffects();
@@ -888,14 +1135,18 @@ class MainScene extends Phaser.Scene {
       }
     }
 
-    if (this.phase === "playing" && this.keys.F.isDown && now - this.lastMagicTime > 300) {
-      this.castMagic();
-      this.updateHud();
-      this.lastMagicTime = now;
+    if (this.phase === "playing" && now - this.lastMagicTime > 300) {
+      const spellKey = this.keys.F.isDown ? "bolt" : this.keys.Q.isDown ? "inferno" : this.keys.E.isDown ? "lance" : null;
+      if (spellKey) {
+        this.castMagic(spellKey);
+        this.updateHud();
+        this.lastMagicTime = now;
+      }
     }
 
     this.tryPriestHeal();
     this.updateWorldEvents(dt);
+    this.updateGraveyards(dt);
     this.updateEnemyMovement(dt);
     this.updateBossRoar(dt);
     this.updateGimmicks();
@@ -1021,6 +1272,11 @@ class MainScene extends Phaser.Scene {
     const enemy = this.enemies[enemyIndex];
     if (!enemy) return;
 
+    if (enemy.type === "squad") {
+      this.resolveSquadBattle(enemyIndex, targetX, targetY);
+      return;
+    }
+
     if (this.hero.hasExcalibur && ["miniboss", "finalBoss"].includes(enemy.type)) {
       this.hero.x = targetX ?? enemy.x;
       this.hero.y = targetY ?? enemy.y;
@@ -1032,15 +1288,19 @@ class MainScene extends Phaser.Scene {
 
     const front = this.formation.length > 0 ? this.formation[0] : { type: "hero" };
     const frontIsKnight = front.type === "knight";
-    const comboBonus = Math.floor((this.comboStreak ?? 0) / 3);
-    const player = (frontIsKnight ? rand(3, 8) : front.type === "soldier" ? rand(1, 6) : rand(4, 9)) + 2 + comboBonus;
+    const comboMultiplier = this.acquiredSkills.includes("combo_master") ? 2 : 1;
+    const comboBonus = Math.floor((this.comboStreak ?? 0) / 3) * comboMultiplier;
+    const soldierDiceBonus = this.formationLevel?.soldierDiceBonus ?? 0;
+    const knightDiceBonus = this.formationLevel?.knightDiceBonus ?? 0;
+    const curseBonus = this.acquiredSkills.includes("berserker_curse") ? 1 : 0;
+    const player = (frontIsKnight ? rand(3, 8) + knightDiceBonus : front.type === "soldier" ? rand(1, 6) + soldierDiceBonus : rand(4, 9)) + 2 + comboBonus + curseBonus;
     const foe = rand(1, 6) + enemy.power;
     this.audio?.playSfx("attack");
 
     if (player >= foe) {
       const baseDmg = enemy.type === "finalBoss" ? 2 : 1;
       const knightBonus = frontIsKnight && enemy.type !== "finalBoss" ? 1 : 0;
-      enemy.hp -= baseDmg + knightBonus;
+      enemy.hp -= baseDmg + knightBonus + curseBonus;
       this.comboStreak = (this.comboStreak ?? 0) + 1;
       this.audio?.playSfx(enemy.type === "finalBoss" ? "boss" : "hit");
       if (enemy.hp <= 0) {
@@ -1060,26 +1320,101 @@ class MainScene extends Phaser.Scene {
       return;
     }
 
-    this.comboStreak = 0;
+    const vanguardFocus = this.acquiredSkills.includes("vanguard_focus");
+    if (!vanguardFocus) this.comboStreak = 0;
     if (this.formation.length > 0) {
       const lost = this.formation.shift();
       this.audio?.playSfx("damage");
       this.damageRegenDelay = 6;
-      this.message = lost.type === "knight" ? "騎士が倒れました。連撃リセット。" : "兵が倒れました。連撃リセット。";
+      const comboNote = vanguardFocus ? "" : "連撃リセット。";
+      this.message = lost.type === "knight" ? `騎士が倒れました。${comboNote}` : `兵が倒れました。${comboNote}`;
       return;
     }
 
-    this.hero.hp -= enemy.type === "finalBoss" ? 2 : 1;
+    this.hero.hp -= (enemy.type === "finalBoss" ? 2 : 1) + curseBonus;
     this.damageRegenDelay = 8;
     this.audio?.playSfx("damage");
     if (this.hero.hp <= 0) {
       this.hero.hp = 0;
       this.message = "GAME OVER";
-      this.phase = "gameover";
-      this.showGameOverOverlay();
+      this.handleGameOver();
     } else {
       this.message = enemy.type === "finalBoss" ? "龍の一撃で王が傷つきました。" : "王が傷つきました。";
     }
+  }
+
+  resolveSquadBattle(enemyIndex, targetX = null, targetY = null) {
+    const squad = this.enemies[enemyIndex];
+    if (!squad || squad.roster.length === 0) return;
+    const foeUnit = squad.roster[0];
+
+    const front = this.formation.length > 0 ? this.formation[0] : { type: "hero" };
+    const frontIsKnight = front.type === "knight";
+    const comboMultiplier = this.acquiredSkills.includes("combo_master") ? 2 : 1;
+    const comboBonus = Math.floor((this.comboStreak ?? 0) / 3) * comboMultiplier;
+    const soldierDiceBonus = this.formationLevel?.soldierDiceBonus ?? 0;
+    const knightDiceBonus = this.formationLevel?.knightDiceBonus ?? 0;
+    const curseBonus = this.acquiredSkills.includes("berserker_curse") ? 1 : 0;
+    const player = (frontIsKnight ? rand(3, 8) + knightDiceBonus : front.type === "soldier" ? rand(1, 6) + soldierDiceBonus : rand(4, 9)) + 2 + comboBonus + curseBonus;
+    const foe = rand(1, 6) + (foeUnit.power ?? 2);
+    this.audio?.playSfx("attack");
+
+    if (player >= foe) {
+      squad.roster.shift();
+      this.comboStreak = (this.comboStreak ?? 0) + 1;
+      this.audio?.playSfx("hit");
+      if (squad.roster.length === 0) {
+        this.hero.x = targetX ?? squad.x;
+        this.hero.y = targetY ?? squad.y;
+        const comboLabel = this.comboStreak >= 3 ? `【${this.comboStreak}連撃！】` : "";
+        this.message = `${comboLabel}敵部隊を全滅させた。`;
+        this.removeSquad(enemyIndex);
+      } else {
+        const comboLabel = this.comboStreak >= 3 ? `【${this.comboStreak}連撃】` : "";
+        this.message = `${comboLabel}敵部隊に一撃！残り${squad.roster.length}体。`;
+      }
+      return;
+    }
+
+    const vanguardFocus = this.acquiredSkills.includes("vanguard_focus");
+    if (!vanguardFocus) this.comboStreak = 0;
+    if (this.formation.length > 0) {
+      const lost = this.formation.shift();
+      this.audio?.playSfx("damage");
+      this.damageRegenDelay = 6;
+      const comboNote = vanguardFocus ? "" : "連撃リセット。";
+      this.message = lost.type === "knight" ? `騎士が倒れました。${comboNote}` : `兵が倒れました。${comboNote}`;
+      return;
+    }
+
+    this.hero.hp -= 1 + curseBonus;
+    this.damageRegenDelay = 8;
+    this.audio?.playSfx("damage");
+    if (this.hero.hp <= 0) {
+      this.hero.hp = 0;
+      this.message = "GAME OVER";
+      this.handleGameOver();
+    } else {
+      this.message = "王が敵部隊の反撃を受けました。";
+    }
+  }
+
+  removeSquad(index) {
+    const squad = this.enemies[index];
+    if (!squad) return;
+
+    this.score += 10 * (squad.maxRoster ?? 1);
+    this.kills += squad.maxRoster ?? 1;
+    this.worldEffects.push({
+      type: "kill",
+      x: squad.x,
+      y: squad.y,
+      size: 1,
+      color: 0xff8a65,
+      expiresAt: this.time.now + 500,
+    });
+
+    this.enemies.splice(index, 1);
   }
 
   removeEnemy(index) {
@@ -1116,7 +1451,8 @@ class MainScene extends Phaser.Scene {
       const newUnit = nextCount % 3 === 0 ? { type: "knight" } : { type: "soldier" };
       this.formation.push(newUnit);
       this.score += 20;
-      this.hero.hp = Math.min(this.hero.maxHp, this.hero.hp + 1);
+      const healBonus = this.acquiredSkills.includes("rescue_heal") ? 1 : 0;
+      this.hero.hp = Math.min(this.hero.maxHp, this.hero.hp + 1 + healBonus);
       this.audio?.playSfx("pickup");
       this.worldEffects.push({
         type: "rescue",
@@ -1140,12 +1476,23 @@ class MainScene extends Phaser.Scene {
     }
   }
 
-  castMagic() {
+  getSpellBook() {
+    return {
+      bolt: { name: "光弾", cost: 1, cooldown: 0.9, recovery: 2.8, dmg: 2, dmgBoss: 3, color: 0x90caf9, maxTargets: 1 },
+      inferno: { name: "業火", cost: 3, cooldown: 1.6, recovery: 4.5, dmg: 1, dmgBoss: 2, color: 0xff8a65, maxTargets: 3 },
+      lance: { name: "極光の槍", cost: 2, cooldown: 1.2, recovery: 3.6, dmg: 3, dmgBoss: 4, color: 0xf3e7b0, maxTargets: 1, pierce: 2 },
+    };
+  }
+
+  castMagic(spellKey = "bolt") {
+    const spell = this.getSpellBook()[spellKey];
+    if (!spell) return;
+
     if (this.mage.cooldown > 0) {
       this.message = "大魔法使いは再詠唱中です。";
       return;
     }
-    if (this.mage.mana < this.mage.beamCost) {
+    if (this.mage.mana < spell.cost) {
       this.message = "大魔法使いは魔力の回復待ちです。";
       return;
     }
@@ -1169,20 +1516,34 @@ class MainScene extends Phaser.Scene {
       return;
     }
 
-    const mageX = Math.max(1, this.hero.x - this.formation.length - 1);
-    const mageY = this.hero.y;
-    const target = this.enemies[targets[0].index];
-    const targetPoint = { x: target.x + Math.floor(this.getEnemySize(target) / 2), y: target.y + Math.floor(this.getEnemySize(target) / 2) };
+    const chosenEnemies = targets.slice(0, spell.maxTargets).map(t => this.enemies[t.index]).filter(Boolean);
 
-    this.spawnMagicEffect(mageX, mageY, targetPoint.x, targetPoint.y, target.type === "finalBoss" ? 0xfff59d : 0x90caf9);
-    this.mage.mana = Math.max(0, this.mage.mana - this.mage.beamCost);
-    this.mage.cooldown = 0.9;
-    this.mage.recoveryDelay = this.mage.beamRecoveryDelay;
-
-    target.hp -= target.type === "finalBoss" ? 3 : 2;
+    this.mage.mana = Math.max(0, this.mage.mana - spell.cost);
+    this.mage.cooldown = spell.cooldown;
+    this.mage.recoveryDelay = spell.recovery;
     this.audio?.playSfx("magic");
-    if (target.hp <= 0) this.removeEnemy(targets[0].index);
-    this.message = "大魔法使いが光線を放ちました。";
+
+    for (const target of chosenEnemies) {
+      const targetPoint = { x: target.x + Math.floor(this.getEnemySize(target) / 2), y: target.y + Math.floor(this.getEnemySize(target) / 2) };
+      this.spawnMagicEffect(this.hero.x, this.hero.y, targetPoint.x, targetPoint.y, target.type === "finalBoss" ? 0xfff59d : spell.color);
+
+      if (target.type === "squad") {
+        const hits = Math.min(spell.pierce ?? 1, target.roster.length);
+        for (let i = 0; i < hits; i++) target.roster.shift();
+        if (target.roster.length === 0) {
+          const idx = this.enemies.indexOf(target);
+          if (idx >= 0) this.removeSquad(idx);
+        }
+      } else {
+        target.hp -= (target.type === "finalBoss" ? spell.dmgBoss : spell.dmg) + (this.mage.beamDamageBonus || 0);
+        if (target.hp <= 0) {
+          const idx = this.enemies.indexOf(target);
+          if (idx >= 0) this.removeEnemy(idx);
+        }
+      }
+    }
+
+    this.message = `大魔法使いが${spell.name}を放ちました。`;
   }
 
   spawnMagicEffect(fromX, fromY, toX, toY, color) {
@@ -1216,7 +1577,8 @@ class MainScene extends Phaser.Scene {
 
     if (this.hero.hp < this.hero.maxHp && this.damageRegenDelay <= 0) {
       this.passiveHealTick += dt;
-      if (this.passiveHealTick >= 4) {
+      const healInterval = this.acquiredSkills.includes("regen_boost") ? 3 : 4;
+      if (this.passiveHealTick >= healInterval) {
         this.hero.hp = Math.min(this.hero.maxHp, this.hero.hp + 1);
         this.passiveHealTick = 0;
         this.message = this.message === "進軍中..." ? "王のHPが時間経過で回復しました。" : this.message;
@@ -1234,12 +1596,11 @@ class MainScene extends Phaser.Scene {
     if (this.hero.hp >= this.hero.maxHp) return;
     if (this.hero.hp > this.priest.healThreshold && this.hero.maxHp - this.hero.hp < this.priest.healAmount) return;
 
-    const priestX = Math.max(1, this.hero.x - this.formation.length - 2);
     this.priest.mana = Math.max(0, this.priest.mana - this.priest.healCost);
     this.priest.cooldown = 4.5;
     this.priest.recoveryDelay = this.priest.healRecoveryDelay;
     this.hero.hp = Math.min(this.hero.maxHp, this.hero.hp + this.priest.healAmount);
-    this.spawnMagicEffect(priestX, this.hero.y, this.hero.x, this.hero.y, 0xfff59d);
+    this.spawnMagicEffect(this.hero.x, this.hero.y - 1, this.hero.x, this.hero.y, 0xfff59d);
     this.audio?.playSfx("heal");
     this.message = "僧侶が自動回復の祈りを捧げました。";
     this.renderAll();
@@ -1293,46 +1654,89 @@ class MainScene extends Phaser.Scene {
     this.updateHud();
   }
 
+  spawnZombieAt(x, y) {
+    this.enemies.push({
+      type: "zombie",
+      x,
+      y,
+      hp: 1,
+      maxHp: 1,
+      power: 2 + Math.floor(this.stage / 3),
+      color: this.colors.zombie,
+    });
+  }
+
   triggerDevilEvent() {
     const area = this.findWorldEventArea(Math.max(2, Math.floor(this.mapW * 0.55)), this.mapW - 5);
     if (!area) return;
 
-    let spawnCount = 0;
     for (let y = area.y; y < area.y + 4; y++) {
       for (let x = area.x; x < area.x + 4; x++) {
         if (!this.inBounds(x, y) || this.map[y][x] === this.TILES.WALL || this.map[y][x] === this.TILES.CASTLE) continue;
         this.worldMap[y][x] = this.WORLD_TILES.DARK;
         if (this.map[y][x] === this.TILES.FOREST) this.map[y][x] = this.TILES.FLOOR;
+      }
+    }
 
-        if (
-          spawnCount < 2 &&
-          this.getTile(x, y) !== this.TILES.WATER &&
-          !(this.hero.x === x && this.hero.y === y) &&
-          !this.prisoners.some(p => p.x === x && p.y === y) &&
-          !this.enemies.some(e => this.enemyOccupies(e, x, y)) &&
-          Math.random() < 0.2
-        ) {
-          const type = Math.random() < 0.5 ? "scout" : "soldier";
-          this.enemies.push({
-            type,
-            x,
-            y,
-            hp: 1,
-            maxHp: 1,
-            power: 3 + Math.floor(this.stage / 3),
-            color: type === "scout" ? this.colors.scout : this.colors.enemy,
-          });
-          spawnCount += 1;
-        }
+    const graveCenter = { x: area.x + 1, y: area.y + 1 };
+    this.graveyards.push(graveCenter);
+    if (this.graveyards.length > 3) this.graveyards.shift();
+
+    let spawnCount = 0;
+    for (let attempt = 0; attempt < 20 && spawnCount < 3; attempt++) {
+      const x = area.x + Phaser.Math.Between(0, 3);
+      const y = area.y + Phaser.Math.Between(0, 3);
+      if (
+        this.inBounds(x, y) &&
+        this.getTile(x, y) !== this.TILES.WATER &&
+        this.getTile(x, y) !== this.TILES.WALL &&
+        this.getTile(x, y) !== this.TILES.CASTLE &&
+        !(this.hero.x === x && this.hero.y === y) &&
+        !this.prisoners.some(p => p.x === x && p.y === y) &&
+        !this.enemies.some(e => this.enemyOccupies(e, x, y))
+      ) {
+        this.spawnZombieAt(x, y);
+        spawnCount += 1;
       }
     }
 
     this.worldEffects.push({ type: "devil", ...area, size: 4, expiresAt: this.time.now + 3200 });
     this.message = spawnCount > 0
-      ? `悪魔が降臨し、4x4 の地を闇へ堕としました。闇の軍勢が ${spawnCount} 体出現。`
-      : "悪魔が降臨し、4x4 の地を闇の世界へ堕落させました。";
+      ? `不吉な墓地が現れ、${spawnCount}体のゾンビが這い出てきました。`
+      : "不吉な墓地が現れました。";
     this.renderAll();
     this.updateHud();
+  }
+
+  updateGraveyards(dt) {
+    if (this.phase !== "playing" || !dt || !this.graveyards?.length) return;
+    this.graveyardSpawnTimer -= dt;
+    if (this.graveyardSpawnTimer > 0) return;
+    this.graveyardSpawnTimer = Phaser.Math.FloatBetween(6, 9);
+
+    const zombieCount = this.enemies.filter(e => e.type === "zombie").length;
+    if (zombieCount >= 6) return;
+
+    const grave = this.graveyards[Phaser.Math.Between(0, this.graveyards.length - 1)];
+    for (let attempt = 0; attempt < 12; attempt++) {
+      const x = grave.x + Phaser.Math.Between(-1, 1);
+      const y = grave.y + Phaser.Math.Between(-1, 1);
+      if (
+        this.inBounds(x, y) &&
+        this.getTile(x, y) !== this.TILES.WATER &&
+        this.getTile(x, y) !== this.TILES.WALL &&
+        this.getTile(x, y) !== this.TILES.CASTLE &&
+        !(this.hero.x === x && this.hero.y === y) &&
+        !this.prisoners.some(p => p.x === x && p.y === y) &&
+        !this.enemies.some(e => this.enemyOccupies(e, x, y))
+      ) {
+        this.spawnZombieAt(x, y);
+        this.message = "墓地からゾンビが溢れ出てきた。";
+        this.renderAll();
+        this.updateHud();
+        break;
+      }
+    }
   }
 
   updateEnemyMovement(dt) {
@@ -1341,20 +1745,30 @@ class MainScene extends Phaser.Scene {
     if (this.enemyMoveTimer > 0) return;
     this.enemyMoveTimer = 2.5 - Math.min(1.2, (this.stage - 1) * 0.2);
 
+    const guardActive = this.excalibur && !this.excalibur.picked;
+
     for (const e of this.enemies) {
-      if (["miniboss", "finalBoss"].includes(e.type)) continue;
-      const dx = Math.sign(this.hero.x - e.x);
-      const dy = Math.sign(this.hero.y - e.y);
+      const size = this.getEnemySize(e);
+      let targetX = this.hero.x;
+      let targetY = this.hero.y;
+
+      if (guardActive && e.guardTarget) {
+        const heroDistToSword = Math.abs(this.hero.x - this.excalibur.x) + Math.abs(this.hero.y - this.excalibur.y);
+        if (heroDistToSword > 6) {
+          targetX = e.guardTarget.x;
+          targetY = e.guardTarget.y;
+        }
+      }
+
+      const dx = Math.sign(targetX - e.x);
+      const dy = Math.sign(targetY - e.y);
       const candidates = [];
       if (dx !== 0) candidates.push({ x: e.x + dx, y: e.y });
       if (dy !== 0) candidates.push({ x: e.x, y: e.y + dy });
 
       for (const c of candidates) {
-        if (!this.inBounds(c.x, c.y)) continue;
-        if (!this.isPassable(c.x, c.y)) continue;
-        if (c.x === this.hero.x && c.y === this.hero.y) continue;
-        if (this.enemies.some(other => other !== e && this.enemyOccupies(other, c.x, c.y))) continue;
-        if (this.prisoners.some(p => p.x === c.x && p.y === c.y)) continue;
+        if (!this.inBounds(c.x, c.y) || !this.inBounds(c.x + size - 1, c.y + size - 1)) continue;
+        if (!this.canPlaceRect(c.x, c.y, size, size, false, e)) continue;
         e.x = c.x;
         e.y = c.y;
         break;
@@ -1371,7 +1785,7 @@ class MainScene extends Phaser.Scene {
     if (this.bossRoarTimer > 0) return;
     this.bossRoarTimer = Math.max(3.0, 6.0 - (this.stage - 1) * 0.5);
 
-    const roarRadius = 5;
+    const roarRadius = 5 - (this.acquiredSkills.includes("roar_resist") ? 2 : 0);
     const heroDistX = Math.abs(this.hero.x - (boss.x + 2));
     const heroDistY = Math.abs(this.hero.y - (boss.y + 2));
     const heroInRange = heroDistX <= roarRadius && heroDistY <= roarRadius;
@@ -1396,8 +1810,7 @@ class MainScene extends Phaser.Scene {
         this.message = "龍が吠えた！王が衝撃波を受けた！";
         if (this.hero.hp <= 0) {
           this.hero.hp = 0;
-          this.phase = "gameover";
-          this.showGameOverOverlay();
+          this.handleGameOver();
         }
       }
     } else {
@@ -1532,12 +1945,18 @@ class MainScene extends Phaser.Scene {
           this.audio?.playSfx("boss");
           if (this.hero.hp <= 0) {
             this.message = "龍ラスボスのブレスでGAME OVER";
-            this.phase = "gameover";
-            this.showGameOverOverlay();
+            this.handleGameOver();
           } else {
             this.message = "龍ラスボスのブレスを受けました。";
           }
         }
+        continue;
+      }
+
+      if (e.type === "miniboss") {
+        const heroNearX = this.hero.x >= e.x - 1 && this.hero.x <= e.x + size;
+        const heroNearY = this.hero.y >= e.y - 1 && this.hero.y <= e.y + size;
+        if (heroNearX && heroNearY) this.resolveBattle(i);
         continue;
       }
 
@@ -1691,6 +2110,8 @@ class MainScene extends Phaser.Scene {
       scout: { body: 0xc96b4b, cape: 0x733321, accent: 0x2c1e15 },
       enemySoldier: { body: 0xa84634, cape: 0x6a2319, accent: 0x425046 },
       enemyKnight: { body: 0xbd6a4d, cape: 0x5b2a1c, accent: 0x2c1e15 },
+      enemyArcher: { body: 0x8a6f9e, cape: 0x4a3860, accent: 0x2c1e15 },
+      zombie: { body: 0x6f8a5c, cape: 0x3a4a2e, accent: 0x1f2917 },
       prisoner: { body: 0x6aaea4, cape: 0x2c5f57, accent: 0xe1f3ec },
       excalibur: { body: 0xe0c063, cape: 0xf6edd2, accent: 0x8fc8bb },
     }[kind];
@@ -1787,6 +2208,26 @@ class MainScene extends Phaser.Scene {
       this.unitGraphics.fillRect(px + 17, py + 11, 2, 11);
     }
 
+    if (kind === "enemyArcher") {
+      this.unitGraphics.fillStyle(base.accent, 1);
+      this.unitGraphics.fillRect(px + 6, py + 5, 2, 15);
+      this.unitGraphics.lineStyle(1.5, 0xe2e0d1, 1);
+      this.unitGraphics.beginPath();
+      this.unitGraphics.arc(px + 7, py + 12, 8, -Math.PI / 2, Math.PI / 2, false);
+      this.unitGraphics.strokePath();
+      this.unitGraphics.fillStyle(0xe2e0d1, 1);
+      this.unitGraphics.fillRect(px + 8, py + 11, 10, 1.5);
+    }
+
+    if (kind === "zombie") {
+      this.unitGraphics.fillStyle(base.accent, 0.9);
+      this.unitGraphics.fillRect(px + 6, py + 4, 5, 3);
+      this.unitGraphics.fillRect(px + 13, py + 4, 5, 3);
+      this.unitGraphics.fillStyle(0x1f2917, 1);
+      this.unitGraphics.fillRect(px + 5, py + 20, 4, 4);
+      this.unitGraphics.fillRect(px + 15, py + 18, 4, 5);
+    }
+
     if (kind === "prisoner") {
       this.unitGraphics.fillStyle(base.accent, 1);
       this.unitGraphics.fillRect(px + 8, py + 14, 2, 8);
@@ -1823,6 +2264,13 @@ class MainScene extends Phaser.Scene {
       else if (e.type === "scout") this.drawCharacter(drawX, drawY, "scout");
       else if (e.type === "soldier") this.drawCharacter(drawX, drawY, "enemySoldier");
       else if (e.type === "knight") this.drawCharacter(drawX, drawY, "enemyKnight");
+      else if (e.type === "zombie") this.drawCharacter(drawX, drawY, "zombie");
+      else if (e.type === "squad" && e.roster.length > 0) {
+        const front = e.roster[0];
+        const kind = front.type === "knight" ? "enemyKnight" : front.type === "archer" ? "enemyArcher" : front.type === "soldier" ? "enemySoldier" : "scout";
+        this.drawCharacter(drawX, drawY, kind);
+        this.drawBar(drawX * this.tileSize + 2, drawY * this.tileSize - 5, this.tileSize - 4, 3, e.roster.length, e.maxRoster ?? e.roster.length, 0xc9b07b);
+      }
 
       if (["miniboss", "finalBoss"].includes(e.type)) {
         const size = this.getEnemySize(e);
@@ -1840,10 +2288,6 @@ class MainScene extends Phaser.Scene {
 
     const heroDrawX = typeof this.hero.displayX === "number" ? this.hero.displayX : this.hero.x;
     const heroDrawY = typeof this.hero.displayY === "number" ? this.hero.displayY : this.hero.y;
-    const priestX = Math.max(1, heroDrawX - this.formation.length - 2);
-    const mageX = Math.max(1, heroDrawX - this.formation.length - 1);
-    this.drawCharacter(priestX, heroDrawY, "priest");
-    this.drawCharacter(mageX, heroDrawY, "mage");
 
     const beforeEffects = this.worldEffects.length;
     this.worldEffects = this.worldEffects.filter(effect => effect.expiresAt > this.time.now);
@@ -1968,32 +2412,50 @@ class MainScene extends Phaser.Scene {
       this.unitGraphics.fillCircle((sx + tx) / 2, (sy + ty) / 2, 3 + age * 3);
     }
 
-    let fx = heroDrawX;
-    for (let i = 0; i < this.formation.length; i++) {
-      fx--;
-      if (!this.inBounds(Math.round(fx), Math.round(heroDrawY))) break;
-      this.drawCharacter(fx, heroDrawY, this.formation[i].type === "knight" ? "knight" : "soldier");
-    }
-
     this.drawCharacter(heroDrawX, heroDrawY, "hero", 1, { hasExcalibur: this.hero.hasExcalibur });
     this.drawBar(heroDrawX * this.tileSize + 2, heroDrawY * this.tileSize - 5, this.tileSize - 4, 4, this.hero.hp, this.hero.maxHp, 0x81c784);
+  }
 
-    this.mageMpText.setPosition(mageX * this.tileSize - 4, heroDrawY * this.tileSize - 18);
-    this.mageMpText.setText(`大魔法使い MP ${Math.floor(this.mage?.mana ?? 0)}/${this.mage?.maxMana ?? 0}`);
+  bindPartyHudDom() {
+    this.partyHudNodes = {
+      hero: document.getElementById("hud-hero"),
+      soldier: document.getElementById("hud-soldier"),
+      knight: document.getElementById("hud-knight"),
+      mage: document.getElementById("hud-mage"),
+      priest: document.getElementById("hud-priest"),
+    };
+  }
+
+  updatePartyHudDom() {
+    const nodes = this.partyHudNodes;
+    if (!nodes) return;
+    const soldiers = this.formation?.filter(u => u.type === "soldier").length ?? 0;
+    const knights = this.formation?.filter(u => u.type === "knight").length ?? 0;
+
+    if (nodes.hero) nodes.hero.textContent = `王 HP ${this.hero?.hp ?? 8}/${this.hero?.maxHp ?? 8}`;
+    if (nodes.soldier) nodes.soldier.textContent = `兵士 x${soldiers}`;
+    if (nodes.knight) nodes.knight.textContent = `騎士 x${knights}`;
+    if (nodes.mage) nodes.mage.textContent = `大魔法使い MP ${Math.floor(this.mage?.mana ?? 0)}/${this.mage?.maxMana ?? 0}`;
+    if (nodes.priest) nodes.priest.textContent = `僧侶 MP ${Math.floor(this.priest?.mana ?? 0)}/${this.priest?.maxMana ?? 0}`;
   }
 
   updateHud() {
+    this.updatePartyHudDom();
     const soldiers = this.formation?.filter(u => u.type === "soldier").length ?? 0;
     const knights = this.formation?.filter(u => u.type === "knight").length ?? 0;
     const phaseLabel = this.phase === "title"
       ? "出撃前"
       : this.phase === "clear"
         ? "ステージクリア"
-        : this.phase === "gameover"
-          ? "敗北"
-          : this.phase === "paused"
-            ? "一時停止"
-            : "進軍中";
+        : this.phase === "draftpick"
+          ? "ドラフト選択中"
+          : this.phase === "shop"
+            ? "ショップ"
+            : this.phase === "gameover"
+              ? "敗北"
+              : this.phase === "paused"
+                ? "一時停止"
+                : "進軍中";
 
     this.syncDomButtons();
     this.infoText.setText(`状態 ${phaseLabel}  STAGE ${this.stage}  SCORE ${this.score}  HP ${this.hero?.hp ?? 8}/${this.hero?.maxHp ?? 8}  兵 ${soldiers}  騎士 ${knights}  魔 ${Math.floor(this.mage?.mana ?? 0)}/${this.mage?.maxMana ?? 0}  僧 ${Math.floor(this.priest?.mana ?? 0)}/${this.priest?.maxMana ?? 0}  聖剣 ${this.hero?.hasExcalibur ? "有" : "無"}  自然回復 ${this.damageRegenDelay > 0 ? "待機中" : "有効"}`);
@@ -2010,32 +2472,6 @@ class MainScene extends Phaser.Scene {
       this.comboText?.setVisible(false);
     }
 
-    this.pushWarRoomState();
-  }
-
-  createWarRoomSnapshot() {
-    return {
-      phase: this.phase,
-      stage: this.stage,
-      score: this.score,
-      kills: this.kills,
-      enemyCount: this.enemies?.length ?? 0,
-      prisonerCount: this.prisoners?.length ?? 0,
-      soldierCount: this.formation?.filter((u) => u.type === "soldier").length ?? 0,
-      knightCount: this.formation?.filter((u) => u.type === "knight").length ?? 0,
-      heroHp: this.hero?.hp ?? 8,
-      heroMaxHp: this.hero?.maxHp ?? 8,
-      mageMana: Math.floor(this.mage?.mana ?? 0),
-      mageMaxMana: this.mage?.maxMana ?? 0,
-      priestMana: Math.floor(this.priest?.mana ?? 0),
-      priestMaxMana: this.priest?.maxMana ?? 0,
-      hasExcalibur: Boolean(this.hero?.hasExcalibur),
-      message: this.message ?? "",
-    };
-  }
-
-  pushWarRoomState() {
-    this.warRoom?.update(this.createWarRoomSnapshot());
   }
 }
 

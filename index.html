@@ -10,11 +10,10 @@
   <main class="app">
     <section class="hero-panel">
       <div>
-        <p class="eyebrow">Celtic Mythic Tactical Action</p>
+        <p class="eyebrow">Roguelike Tactical Siege</p>
         <p id="build-version" class="build-version" aria-label="ビルドバージョン">version loading...</p>
         <h1>Kingdom Wars DX</h1>
-        <p class="lead">ケルトの意匠を思わせる深緑と金の戦場で、王国軍を率いて敵城へ進軍するレトロ風ライン戦術アクションです。王・兵士・騎士・魔法使い・僧侶の隊列を守りながら、捕虜救出と聖剣回収を経てラスボスを倒してください。</p>
-        <p class="hero-ornament" aria-hidden="true">☘ 永き石輪と森の加護をまとい、古き王国の道を進め ☘</p>
+        <p class="lead">王国軍を率いて敵城へ進軍する、周回するたびに編成が変わるローグライク戦術アクションです。捕虜を救出して隊列を強化し、ステージクリアごとの編成/秘術ドラフトでビルドを組み上げ、ラスボスを撃破してください。</p>
       </div>
       <div class="hero-actions">
         <button id="start-button" type="button">ゲーム開始</button>
@@ -24,6 +23,28 @@
 
     <section class="content-grid">
       <section class="game-panel">
+        <div id="party-hud" class="party-hud" aria-live="polite">
+          <div class="party-hud-item">
+            <span class="party-hud-icon" aria-hidden="true">👑</span>
+            <span class="party-hud-label" id="hud-hero">王 HP 8/8</span>
+          </div>
+          <div class="party-hud-item">
+            <span class="party-hud-icon" aria-hidden="true">🛡️</span>
+            <span class="party-hud-label" id="hud-soldier">兵士 x0</span>
+          </div>
+          <div class="party-hud-item">
+            <span class="party-hud-icon" aria-hidden="true">⚔️</span>
+            <span class="party-hud-label" id="hud-knight">騎士 x0</span>
+          </div>
+          <div class="party-hud-item">
+            <span class="party-hud-icon" aria-hidden="true">🧙</span>
+            <span class="party-hud-label" id="hud-mage">大魔法使い MP 0/0</span>
+          </div>
+          <div class="party-hud-item">
+            <span class="party-hud-icon" aria-hidden="true">⛪</span>
+            <span class="party-hud-label" id="hud-priest">僧侶 MP 0/0</span>
+          </div>
+        </div>
         <div id="game-container" aria-label="Kingdom Wars DX game screen"></div>
       </section>
 
@@ -41,7 +62,7 @@
           <h2>戦場の作法</h2>
           <dl class="controls-list">
             <div><dt>移動</dt><dd>矢印キー / WASD</dd></div>
-            <div><dt>魔法</dt><dd>F キー / 発射軌跡を表示</dd></div>
+            <div><dt>魔法</dt><dd>F 光弾 / Q 業火（範囲） / E 極光の槍（貫通）</dd></div>
             <div><dt>再開始</dt><dd>R キー または右上ボタン</dd></div>
             <div><dt>開始</dt><dd>Enter / Space / 開始ボタン（進軍中は一時停止 / 再開）</dd></div>
           </dl>
@@ -61,50 +82,6 @@
           </ul>
         </section>
 
-        <section class="panel-block war-room-block">
-          <h2>六王国連携祭壇</h2>
-          <p class="legend-note">Phaser を主戦場に据えつつ、他ライブラリが戦況可視化と儀式演出を支える連携層です。</p>
-          <div id="war-room-grid" class="war-room-grid" aria-live="polite">
-            <article class="war-widget">
-              <h3>Babylon.js</h3>
-              <div id="war-babylon" class="war-widget-stage"></div>
-            </article>
-            <article class="war-widget">
-              <h3>PixiJS</h3>
-              <div id="war-pixi" class="war-widget-stage"></div>
-            </article>
-            <article class="war-widget">
-              <h3>phina.js</h3>
-              <div id="war-phina" class="war-widget-stage"></div>
-            </article>
-            <article class="war-widget">
-              <h3>enchant.js</h3>
-              <div id="war-enchant" class="war-widget-stage"></div>
-            </article>
-            <article class="war-widget war-widget-wide">
-              <h3>Kiwi.js</h3>
-              <div id="war-kiwi" class="war-widget-stage"></div>
-            </article>
-          </div>
-        </section>
-
-        <section id="library-demo-panel" class="panel-block" hidden>
-          <h2>ライブラリ実装デモ</h2>
-          <p class="legend-note">以下の 6 種類のゲーム用ライブラリの最小デモを切り替えて確認できます。</p>
-          <div class="library-switcher">
-            <select id="library-select" aria-label="ライブラリ選択">
-              <option value="phaser">Phaser.js</option>
-              <option value="phina">phina.js</option>
-              <option value="babylon">Babylon.js</option>
-              <option value="pixi">PixiJS</option>
-              <option value="enchant">enchant.js</option>
-              <option value="kiwi">Kiwi.js</option>
-            </select>
-            <button id="library-run-button" type="button">デモ再読み込み</button>
-          </div>
-          <p id="library-demo-status" class="library-demo-status">未実行</p>
-          <div id="library-demo-container" class="library-demo-container" aria-live="polite"></div>
-        </section>
       </aside>
     </section>
   </main>
@@ -164,7 +141,6 @@
 
       loadScript("./vendor/phaser.js")
         .then(() => loadScript("./game.js", "module"))
-        .then(() => loadScript("./src/library-demo.js", "module"))
         .catch((error) => {
           console.error("Failed to boot application scripts.", error);
           showBootError("boot failed");
